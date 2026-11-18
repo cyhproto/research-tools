@@ -168,13 +168,16 @@ def _mask_for_numbers(md: str) -> str:
 
 def _materials_texts(paper_dir: Path) -> list[str]:
     """The text files under materials/, except materials/references/: reference-manager exports hold
-    other papers' abstracts, and a number from a cited abstract has its own check (_cited_abstract_with)."""
+    other papers' abstracts, and a number from a cited abstract has its own check (_cited_abstract_with).
+
+    The folder name is compared in any letter case: macOS file systems ignore case by default, so
+    materials/References/ is the import folder there too."""
     root = paper_dir / "materials"
     if not root.is_dir():
         return []
     return [p.read_text(encoding="utf-8", errors="replace")
             for p in sorted(root.rglob("*")) if p.is_file() and p.suffix.lower() in TEXT_SUFFIXES
-            and p.relative_to(root).parts[0] != "references"]
+            and p.relative_to(root).parts[0].casefold() != "references"]
 
 
 class _Items:

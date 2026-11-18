@@ -368,3 +368,13 @@ def test_check_lines_end_in_one_period(tmp_path):
     assert lines and all(l.endswith((".", "!", "?", "2.3")) for l in lines), lines
     assert ".." not in text and "Reason: A difference. Arithmetic: 87.3 - 85.0 = 2.3" in text
     assert "Reason: Not in the materials!" in text
+
+
+def test_reference_exports_are_skipped_in_any_letter_case(tmp_path):
+    # macOS file systems ignore case by default, so materials/References/ is still the import folder
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "Our method reaches 91.7 on X.\n\n## Conclusion"))
+    refs = p / "materials/References"; refs.mkdir()
+    (refs / "library.json").write_text(json.dumps([{"id": "Other2023", "title": "Another Method",
+                                                    "abstract": "It reaches 91.7 on X."}]))
+    got = {i.data["token"]: i.status for i in run_check(p, root) if i.category == "numbers"}
+    assert got == {"91.7": "needs_ruling"}
