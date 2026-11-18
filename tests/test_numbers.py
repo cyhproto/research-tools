@@ -81,3 +81,16 @@ def test_matches_scaling_only():
     assert matches(find_numbers("4500")[0], mats)
     assert matches(find_numbers("0.45")[0], mats)
     assert not matches(find_numbers("450.0")[0], mats)
+
+
+# --- m3 / P37: plural and list cross-references ------------------------------------------------
+def test_plural_and_list_cross_references():
+    md = ("Sections 4.1 and 4.2 show 33.3; Figures 12 and 14 agree; see Tables 2–4, Eqs. (13) and (14), "
+          "Figs. 11, 12, and 13, Secs. 5.1 to 5.3 and Equations 21 & 22.")
+    assert vals(md) == [33.3]
+
+
+def test_a_result_after_a_cross_reference_is_still_checked():
+    assert vals("In Figure 3, 12.5% of the samples fail.") == [12.5]
+    assert vals("Tables 12 and 33.5% more errors.") == [33.5]
+    assert vals("Sections 4.1 and 4.2, 57.5 on average.") == [57.5]

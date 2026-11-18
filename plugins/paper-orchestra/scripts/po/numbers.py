@@ -14,8 +14,16 @@ _LINK_TARGET_RE = re.compile(r"\]\([^)\n]*\)")
 _TAG_RE = re.compile(r"\\tag\*?\{[^}]*\}")
 _HEADING_NUM_RE = re.compile(r"^(#{1,6}[ \t]+)\d+(?:\.\d+)*\.?(?=\s|$)", re.M)
 _LIST_MARKER_RE = re.compile(r"^([ \t]*)(?:[-*+]|\d+[.)])(?=\s)", re.M)
+# Cross-references are not claims. One number after a singular name ("Section 4.1", "Eq. (3)"); a
+# list after a plural one: items and ranges ("2-4", "5.1 to 5.3") joined by commas and closed by
+# "and" or "&" ("Figures 2, 3, and 5"). A percent is never a cross-reference, and the list ends at
+# its closing item, so "Sections 4.1 and 4.2, 57.5 on average" still checks 57.5.
+_XNUM = r"\(?[ \t]*\d+(?:\.\d+)*\)?(?![\d.]*%)"
+_XRANGE = rf"{_XNUM}(?:\s*[–—-]\s*{_XNUM}|\s+to\s+{_XNUM})?"
+_XLIST = rf"{_XRANGE}(?:\s*,\s*{_XRANGE})*(?:(?:\s*,?\s+and\s+|\s*&\s*){_XRANGE})?"
 _XREF_RE = re.compile(
-    r"\b(?:Figure|Fig\.|Table|Section|Sec\.|Eq\.|Equation|Appendix)[ \t]*\(?[ \t]*\d+(?:\.\d+)*\)?", re.I)
+    rf"\b(?:(?:Figure|Fig\.|Table|Section|Sec\.|Eq\.|Equation|Appendix)[ \t]*{_XNUM}"
+    rf"|(?:Figures|Figs\.|Tables|Sections|Secs\.|Eqs\.|Equations)[ \t]*{_XLIST})", re.I)
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _CONTEXT_MAX = 200
 
