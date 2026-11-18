@@ -176,3 +176,61 @@ def test_cli_edge_cases(tmp_path, capsys):
     assert len(json.loads((paper / "reviews/restorations.json").read_text())["v1"]) == 1
     assert main(["review", "render", *base]) == 0
     assert "reinserted" in (paper / "review.md").read_text()
+
+
+# --- P14: revise mode works on the marked draft; changes are kept for review.md ---
+HEADS7 = ["## Review rounds", "## What changed", "## Experiments reviewers asked for",
+          "## Suggestions for your edited paragraphs", "## Changes to your edited paragraphs",
+          "## Protected paragraphs", "## Check"]
+
+
+def _revise_setup(tmp_path):
+    from po.paper import save_version
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    save_version(paper, PRE.replace("My own words here.", "orig"), "tool")
+    (paper / "paper.md").write_text(PRE)
+    assert main(["review", "protect", "--paper", str(paper), "--out", str(paper / "drafts/marked_v0.md")]) == 0
+    return paper, (paper / "drafts/marked_v0.md").read_text(), paper / "drafts/candidate_v1.md"
+
+
+def _changes(paper, cand, map_name="protected_v0.json"):
+    return main(["review", "changes", "--paper", str(paper), "--candidate", str(cand),
+                 "--map", str(paper / "reviews" / map_name)])
+
+
+def test_changes_writes_json_and_render_lists_them(tmp_path):
+    paper, marked, cand = _revise_setup(tmp_path)
+    cand.write_text(marked.replace("My own words here.", "Reworded by the reviser."))
+    assert _changes(paper, cand) == 0
+    assert json.loads((paper / "reviews/changes_v0.json").read_text()) == [
+        {"before": "My own words here.", "after": "Reworded by the reviser."}]
+    assert "po:keep" not in cand.read_text()
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    md = (paper / "review.md").read_text()
+    assert [md.index(h) for h in HEADS7] == sorted(md.index(h) for h in HEADS7)
+    sec = md[md.index("## Changes to your edited paragraphs"):md.index("## Protected paragraphs")]
+    assert "My own words here." in sec and "Reworded by the reviser." in sec
+
+
+def test_untouched_protected_paragraph_not_reported(tmp_path):
+    paper, marked, cand = _revise_setup(tmp_path)
+    cand.write_text(marked.replace("Tool para three.", "Tool para three, revised."))
+    assert _changes(paper, cand) == 0
+    assert json.loads((paper / "reviews/changes_v0.json").read_text()) == []
+    # markers dropped by mistake, paragraph kept verbatim: still not reported as changed or deleted
+    cand.write_text(strip_markers(marked).replace("Tool para three.", "Revised."))
+    assert _changes(paper, cand) == 0
+    assert json.loads((paper / "reviews/changes_v0.json").read_text()) == []
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    md = (paper / "review.md").read_text()
+    assert md[md.index("## Changes to your edited paragraphs"):md.index("## Protected paragraphs")].strip().endswith("None.")
+
+
+def test_changes_needs_versioned_map(tmp_path, capsys):
+    paper, marked, cand = _revise_setup(tmp_path)
+    (paper / "reviews/map.json").write_text((paper / "reviews/protected_v0.json").read_text())
+    cand.write_text(marked)
+    assert _changes(paper, cand, "map.json") == 2
+    assert "protected_v<K>.json" in capsys.readouterr().err
+    assert "po:keep" in cand.read_text()

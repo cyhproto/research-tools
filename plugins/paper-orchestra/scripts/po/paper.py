@@ -342,6 +342,27 @@ def _cmd_replace(args) -> int:
     return 0
 
 
+def _cmd_accept(args) -> int:
+    """Adopt a tool-made draft (an accepted review candidate) as paper.md and a tool version.
+
+    Only the current paper.md's hand edits (vs the previous tool version) are recorded; the
+    adopted draft's own changes are tool text and never count as hand edits."""
+    from .state import get_protected
+    paper = Path(args.paper)
+    src = Path(args.src)
+    if not src.is_file():
+        print(f"{src} not found", file=sys.stderr)
+        return 2
+    new_md = _read(src)
+    current = _read_paper(paper, False)
+    _record_provenance(paper, current, _tool_md(paper), new_md, get_protected(paper))
+    paper.mkdir(parents=True, exist_ok=True)
+    _write(paper / "paper.md", new_md)
+    v = save_version(paper, new_md, "tool")
+    emit({"written": str(paper / "paper.md"), "version": str(v)})
+    return 0
+
+
 def _cmd_edits(args) -> int:
     from .state import get_protected
     paper = Path(args.paper)
@@ -391,6 +412,10 @@ def register(sub) -> None:
     r.add_argument("--only", nargs="+", default=None, metavar="NAME")
     r.add_argument("--force", nargs="+", default=None, metavar="NAME")
     r.set_defaults(func=_cmd_replace)
+    a = cmds.add_parser("accept", parents=[common_parent()],
+                        help="adopt a revised draft as paper.md and a tool version")
+    a.add_argument("--from", dest="src", required=True, help="the draft to adopt")
+    a.set_defaults(func=_cmd_accept)
     cmds.add_parser("edits", parents=[common_parent()], help="report hand edits").set_defaults(func=_cmd_edits)
     cmds.add_parser("references", parents=[common_parent()],
                     help="regenerate References").set_defaults(func=_cmd_references)

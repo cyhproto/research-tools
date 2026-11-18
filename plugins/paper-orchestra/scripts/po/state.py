@@ -15,7 +15,7 @@ STAGE_INPUTS: dict[str, list[str]] = {
     "outline": ["settings.md", "materials/idea.md", "materials/experiment_log.md",
                 "materials/references/must_cite.*"],
     "literature": ["outline.json", "settings.md", "materials/references/*"],
-    "figures": ["outline.json", "materials/idea.md", "materials/experiment_log.md",
+    "figures": ["outline.json#plotting_plan", "materials/idea.md", "materials/experiment_log.md",
                 "materials/figures/*"],
     "write": ["outline.json", "references/library.json", "figures/info.json",
               "materials/idea.md", "materials/experiment_log.md"],
@@ -76,15 +76,39 @@ def save_state(paper_dir, state: dict) -> None:
         raise
 
 
+def _select(paper_dir: Path, spec: str) -> bytes:
+    """`path#key`: one top-level key of a JSON file, canonically dumped.
+
+    A missing file or key gives b""; an unparseable file gives its raw bytes, so any edit still counts."""
+    rel, _, key = spec.partition("#")
+    p = paper_dir / rel
+    if not p.is_file():
+        return b""
+    raw = p.read_bytes()
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return raw
+    if not isinstance(data, dict) or key not in data:
+        return b""
+    return json.dumps(data[key], sort_keys=True, ensure_ascii=False).encode("utf-8")
+
+
 def hash_inputs(paper_dir, stage: str) -> str:
+    """Hash of a stage's inputs: glob patterns, or `path#key` selectors (no glob) for one JSON key."""
     paper_dir = Path(paper_dir)
-    paths: set[Path] = set()
+    parts: dict[str, bytes] = {}
     for pattern in STAGE_INPUTS[stage]:
-        paths.update(p for p in paper_dir.glob(pattern) if p.is_file())
+        if "#" in pattern:
+            parts[pattern] = _select(paper_dir, pattern)
+            continue
+        for p in paper_dir.glob(pattern):
+            if p.is_file():
+                parts[p.relative_to(paper_dir).as_posix()] = p.read_bytes()
     h = hashlib.sha256()
-    for p in sorted(paths, key=lambda p: p.relative_to(paper_dir).as_posix()):
-        h.update(p.relative_to(paper_dir).as_posix().encode("utf-8") + b"\0")
-        h.update(p.read_bytes() + b"\0")
+    for name in sorted(parts):
+        h.update(name.encode("utf-8") + b"\0")
+        h.update(parts[name] + b"\0")
     return h.hexdigest()
 
 

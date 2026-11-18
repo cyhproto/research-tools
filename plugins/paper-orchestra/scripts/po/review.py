@@ -6,6 +6,9 @@ Bookkeeping files written under <paper>/reviews/ (all JSON, read by `render`):
   rounds.json          [{version, overall_before, overall_after, outcome}], one
                        entry per version, written by `decide --record K`
   restorations.json    {"v<K>": [{id, action}]}, replaced per version by `restore`
+  changes_v<K>.json    [{before, after}] for the protected paragraphs a revise-mode
+                       revision of v<K> changed (`changes`; K comes from the
+                       map's name, protected_v<K>.json)
   worklog_v<K>.json    the reviser's worklog for the round on v<K>, with keys
                        addressed_weaknesses, integrated_answers, actions_taken,
                        experiments_requested, suggestions_for_protected
@@ -33,7 +36,8 @@ JSON_BLOCK_RE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.S | re.I)
 KEEP_RE = re.compile(r"<!-- po:keep (\d+) -->\s*(.*?)\s*<!-- /po:keep \1 -->", re.S)
 MARKER_RE = re.compile(r"[ \t]*<!-- /?po:keep \d+ -->[ \t]*\n?")
 HEADINGS = ["## Review rounds", "## What changed", "## Experiments reviewers asked for",
-            "## Suggestions for your edited paragraphs", "## Protected paragraphs", "## Check"]
+            "## Suggestions for your edited paragraphs", "## Changes to your edited paragraphs",
+            "## Protected paragraphs", "## Check"]
 
 
 # ---- scoring -------------------------------------------------------------
@@ -235,13 +239,18 @@ def _reinsert(text: str, id_: str, orig: str, pre: str, occ: int = 0) -> tuple[s
 
 
 def changed_protected(revised_md: str, originals: dict[str, str]) -> list[dict]:
-    """Changed protected paragraphs; `after` is None when marker and text were both deleted."""
-    found = {m.group(1): m.group(2) for m in KEEP_RE.finditer(revised_md.replace("\r\n", "\n"))}
+    """Changed protected paragraphs; `after` is None when marker and text were both deleted.
+
+    A paragraph whose markers were dropped but whose text is still present verbatim is unchanged."""
+    text = revised_md.replace("\r\n", "\n")
+    found = {m.group(1): m.group(2) for m in KEEP_RE.finditer(text)}
+    present = {_collapse(p) for p in paragraphs(strip_markers(text))}
     out = []
     for id_ in sorted(originals, key=int):
         orig = originals[id_]
         if id_ not in found:
-            out.append({"before": orig, "after": None})
+            if _collapse(orig) not in present:
+                out.append({"before": orig, "after": None})
         elif _collapse(found[id_]) != _collapse(orig):
             out.append({"before": orig, "after": found[id_]})
     return out
@@ -262,8 +271,21 @@ def _bullets(items: list[str], empty: str) -> str:
     return "\n".join(f"- {i}" for i in items) if items else empty
 
 
+def _change_lines(changes: list[dict]) -> list[str]:
+    out = []
+    for c in changes:
+        after = c.get("after")
+        out.append(f"- Round v{c.get('version')}: "
+                   + ("paragraph rewritten." if after is not None else "paragraph removed."))
+        out.append(f"  - Before: {_collapse(str(c.get('before', '')))}")
+        if after is not None:
+            out.append(f"  - After: {_collapse(str(after))}")
+    return out
+
+
 def render_review_md(rounds: list[dict], todo: list[str], suggestions: list[str],
-                     restorations: list[dict], check_md: str | None) -> str:
+                     restorations: list[dict], check_md: str | None,
+                     changes: list[dict] | None = None) -> str:
     kept = lambda r: str(r.get("outcome", "")).startswith("ACCEPTED")
     table = ["| Round | Overall before | Overall after | Outcome |", "| --- | --- | --- | --- |"]
     table += [f"| v{r['version']} | {r.get('overall_before')} | {r.get('overall_after')} | {r.get('outcome')} |"
@@ -287,6 +309,7 @@ def render_review_md(rounds: list[dict], todo: list[str], suggestions: list[str]
         "## What changed\n\n" + ("\n".join(changed) if changed else "Nothing yet."),
         "## Experiments reviewers asked for\n\n" + _bullets(_dedup(todo), "None."),
         "## Suggestions for your edited paragraphs\n\n" + _bullets(_dedup(suggestions), "None."),
+        "## Changes to your edited paragraphs\n\n" + ("\n".join(_change_lines(changes or [])) or "None."),
         "## Protected paragraphs\n\n" + prot_body,
         "## Check\n\n" + ((check_md or "").strip("\n") or "Not run yet."),
     ]
@@ -419,6 +442,11 @@ def _cmd_restore(args) -> int:
 def _cmd_changes(args) -> int:
     paper = Path(args.paper)
     cand, mp = _resolve(paper, args.candidate), _resolve(paper, args.map)
+    k = _version_of(mp)
+    if k is None:
+        print("--map must be named like reviews/protected_v<K>.json (K names changes_v<K>.json)",
+              file=sys.stderr)
+        return 2
     try:
         originals = json.loads(_read(mp))
         text = _read(cand)
@@ -427,8 +455,19 @@ def _cmd_changes(args) -> int:
         return 2
     changes = changed_protected(text, originals)
     _write(cand, strip_markers(text))
-    emit({"changes": changes})
+    out = paper / "reviews" / f"changes_v{k}.json"
+    _dump(out, changes)
+    emit({"changes": changes, "written": str(out)})
     return 0
+
+
+def _load_changes(rev: Path) -> list[dict]:
+    out = []
+    for f in sorted(rev.glob("changes_v*.json"), key=lambda p: (_version_of(p) is None, _version_of(p) or 0)):
+        data = _load(f, [])
+        if isinstance(data, list):
+            out += [{"version": _version_of(f), **c} for c in data if isinstance(c, dict)]
+    return out
 
 
 def _cmd_render(args) -> int:
@@ -450,7 +489,7 @@ def _cmd_render(args) -> int:
             sugg += wl.get("suggestions_for_protected", [])
     target = paper / "review.md"
     check = _existing_check(_read(target)) if target.is_file() else None
-    _write(target, render_review_md(rounds, todo, sugg, resto, check))
+    _write(target, render_review_md(rounds, todo, sugg, resto, check, _load_changes(rev)))
     emit({"review": str(target), "rounds": len(rounds)})
     return 0
 
@@ -474,8 +513,9 @@ def register(sub) -> None:
     for flag in ("--candidate", "--map", "--pre"):
         r.add_argument(flag, required=True)
     r.set_defaults(func=_cmd_restore)
-    c = cmds.add_parser("changes", parents=[common_parent()], help="list changed protected paragraphs")
+    c = cmds.add_parser("changes", parents=[common_parent()],
+                        help="list changed protected paragraphs and save reviews/changes_v<K>.json")
     c.add_argument("--candidate", required=True)
-    c.add_argument("--map", required=True)
+    c.add_argument("--map", required=True, help="reviews/protected_v<K>.json; its K names the output")
     c.set_defaults(func=_cmd_changes)
     cmds.add_parser("render", parents=[common_parent()], help="write review.md").set_defaults(func=_cmd_render)

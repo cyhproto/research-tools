@@ -1,6 +1,7 @@
 """Check stage: find citation, number, figure and venue problems, then merge the checker's rulings."""
 import json
 import re
+import sys
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
@@ -361,7 +362,8 @@ def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
     if not (problems or warns or allowed):
         lines.append("No problems found.")
     _write_check_section(paper_dir, "\n".join(lines))
-    return {"ready": not problems, "problems": len(problems), "status_line": status_line}
+    return {"ready": not problems, "problems": len(problems), "status_line": status_line,
+            "needs_ruling": sum(1 for i in items if i.status == "needs_ruling")}
 
 
 def _cmd_run(args) -> int:
@@ -392,6 +394,12 @@ def _cmd_finalize(args) -> int:
     except FileNotFoundError:
         emit({"error": "check/report.json is missing; run `po check run` first"})
         return 2
+    # a wrong or empty rulings path must never pass silently
+    out["rulings_missing"] = bool(out["needs_ruling"]) and not rulings
+    if out["rulings_missing"]:
+        print(f"check finalize: {out['needs_ruling']} item(s) need a ruling, but the rulings file "
+              f"{args.rulings or '(none given)'} is missing or empty; they count as problems",
+              file=sys.stderr)
     emit(out)
     return 0 if out["ready"] else 1
 

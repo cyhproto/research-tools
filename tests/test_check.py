@@ -150,3 +150,27 @@ def test_bad_ruling_values_and_multiline_reason(tmp_path):
     assert "## Experiments" not in text.replace("x ## Experiments y", "")
     finalize(p, {})
     assert text.count("## Check") == 1 == (p / "review.md").read_text().count("## Check")
+
+
+def test_finalize_flags_missing_rulings(tmp_path, capsys):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "This improves by 2.3 points.\n\n## Conclusion"))
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    capsys.readouterr()
+    wrong = tmp_path / "check/rulings.json"  # e.g. a path resolved against the wrong directory
+    assert main(["check", "finalize", "--paper", str(p), "--rulings", str(wrong)]) == 1
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["rulings_missing"] is True and "missing or empty" in cap.err
+    rf = tmp_path / "r.json"; rf.write_text("  \n")
+    assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 1
+    assert json.loads(capsys.readouterr().out)["rulings_missing"] is True
+    [item] = [i for i in json.loads((p / "check/report.json").read_text())["items"] if i["status"] == "needs_ruling"]
+    rf.write_text(json.dumps({item["id"]: {"ruling": "allow", "reason": "difference", "arithmetic": "87.3 - 85.0 = 2.3"}}))
+    assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 0
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["rulings_missing"] is False and cap.err == ""
+    q, _ = setup(tmp_path / "b")  # nothing needs a ruling: a missing file is fine
+    assert main(["check", "run", "--paper", str(q)]) == 0
+    capsys.readouterr()
+    assert main(["check", "finalize", "--paper", str(q), "--rulings", str(wrong)]) == 0
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["rulings_missing"] is False and cap.err == ""

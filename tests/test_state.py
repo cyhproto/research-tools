@@ -9,7 +9,7 @@ def test_input_change_makes_stage_stale(tmp_path):
     (tmp_path / "outline.json").write_text("{}")
     mark_stage(tmp_path, "figures", "done", now=100.0)
     assert stale_stages(tmp_path) == []
-    (tmp_path / "outline.json").write_text('{"x": 1}')
+    (tmp_path / "outline.json").write_text('{"plotting_plan": [1]}')
     assert stale_stages(tmp_path) == ["figures"]
 
 
@@ -26,7 +26,7 @@ def test_staleness_is_transitive(tmp_path):
     mark_stage(tmp_path, "review", "done", now=300.0)
     mark_stage(tmp_path, "check", "done", now=300.0)
     assert stale_stages(tmp_path) == []
-    (tmp_path / "outline.json").write_text('{"x": 1}')
+    (tmp_path / "outline.json").write_text('{"plotting_plan": [1]}')
     assert stale_stages(tmp_path) == ["figures", "write", "review", "check"]
 
 
@@ -35,7 +35,7 @@ def test_transitive_when_own_inputs_unchanged(tmp_path):
     mark_stage(tmp_path, "figures", "done", now=100.0)
     mark_stage(tmp_path, "write", "done", now=200.0)
     mark_stage(tmp_path, "review", "done", now=300.0)
-    (tmp_path / "outline.json").write_text('{"x": 1}')
+    (tmp_path / "outline.json").write_text('{"plotting_plan": [1]}')
     # review's own input (paper.md) is untouched, yet it is stale via write
     assert stale_stages(tmp_path) == ["figures", "write", "review"]
 
@@ -82,3 +82,22 @@ def test_cli_state(tmp_path, capsys):
     assert '"next_stage": "outline"' in out
     assert main(["state", "clear-tasks", "lit:", "--paper", p]) == 0
     assert main(["state", "mark", "bogus", "done", "--paper", p]) == 2
+
+
+def test_json_key_selector_for_figures(tmp_path):
+    import json
+    assert "outline.json#plotting_plan" in STAGE_INPUTS["figures"]
+    assert "outline.json" not in STAGE_INPUTS["figures"]
+    empty = hash_inputs(tmp_path, "figures")
+    (tmp_path / "outline.json").write_text('{"section_plan": []}')
+    assert hash_inputs(tmp_path, "figures") == empty  # a missing file and a missing key hash alike
+    o = {"plotting_plan": [{"figure_id": "a"}],
+         "section_plan": [{"subsections": [{"citation_candidates": []}]}]}
+    (tmp_path / "outline.json").write_text(json.dumps(o))
+    mark_stage(tmp_path, "figures", "done", now=100.0)
+    o["section_plan"][0]["subsections"][0]["citation_candidates"] = ["Vaswani2017AttentionAll"]
+    (tmp_path / "outline.json").write_text(json.dumps(o, indent=2))
+    assert stale_stages(tmp_path) == []
+    o["plotting_plan"].append({"figure_id": "b"})
+    (tmp_path / "outline.json").write_text(json.dumps(o))
+    assert stale_stages(tmp_path) == ["figures"]

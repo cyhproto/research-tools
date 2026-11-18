@@ -164,3 +164,50 @@ def test_forced_flow_protection_across_replaces(tmp_path, capsys):
 def test_edits_without_style_file(tmp_path, capsys):
     (tmp_path / "settings.md").write_text("---\nstyle: no-such-style\n---\n")
     assert _main(["paper", "edits", "--paper", str(tmp_path)]) == 0
+
+
+# --- P13: paper accept -------------------------------------------------------
+ACCEPT_TOOL = ("# T\n\n## Introduction\n\nIntro para.\n\n## Method\n\nMethod one.\n\nMethod two.\n\n"
+               "## Experiments\n\nExp one.\n")
+
+
+def test_accept_records_user_edits_not_reviser_text(tmp_path, capsys):
+    import json
+    from po.state import get_protected, last_tool_version
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    base = ["--paper", str(paper)]
+    save_version(paper, ACCEPT_TOOL, "tool")
+    (paper / "paper.md").write_text(ACCEPT_TOOL.replace("Exp one.", "Exp one, in my own words."))
+    # keep mode: protect, the reviser rewrites Method, restore
+    assert _main(["review", "protect", *base, "--out", str(paper / "drafts/marked_v0.md")]) == 0
+    marked = (paper / "drafts/marked_v0.md").read_text()
+    cand = paper / "drafts/candidate_v1.md"
+    cand.write_text(marked.replace("Method two.", "Method two, revised.\n\nA new reviser paragraph."))
+    assert _main(["review", "restore", *base, "--candidate", str(cand), "--map",
+                  str(paper / "reviews/protected_v0.json"), "--pre", str(paper / "drafts/marked_v0.md")]) == 0
+    capsys.readouterr()
+    assert _main(["paper", "accept", *base, "--from", str(cand)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert (paper / "paper.md").read_text() == cand.read_text()
+    assert "Exp one, in my own words." in (paper / "paper.md").read_text()
+    assert out["version"].endswith("v2.md") and last_tool_version(paper).read_text() == cand.read_text()
+    assert get_protected(paper) == ["Exp one, in my own words."]
+    assert _main(["paper", "edits", *base]) == 0
+    assert json.loads(capsys.readouterr().out)["sections"] == ["Experiments"]
+    # a later write of the reviser-changed section is no conflict; the user's section still is
+    new = tmp_path / "w.md"
+    new.write_text("## Method\n\nMethod rewritten by a later write.\n")
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(new)]) == 0
+    assert "Method rewritten by a later write." in (paper / "paper.md").read_text()
+    capsys.readouterr()
+    new.write_text("## Experiments\n\nExp rewritten.\n")
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(new)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Experiments"]}
+
+
+def test_accept_missing_file(tmp_path, capsys):
+    (tmp_path / "paper.md").write_text(ACCEPT_TOOL)
+    assert _main(["paper", "accept", "--paper", str(tmp_path), "--from", str(tmp_path / "nope.md")]) == 2
+    assert "not found" in capsys.readouterr().err
+    assert (tmp_path / "paper.md").read_text() == ACCEPT_TOOL
