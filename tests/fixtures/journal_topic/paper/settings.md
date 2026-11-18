@@ -12,6 +12,6 @@ profile: light
 # max_review_rounds: upper limit on review and revise rounds (optional; when absent it follows the profile's revision rounds)
 # hand_edits: keep preserves your manual edits on re-draft, revise lets reviewers rework them
 hand_edits: keep
-# authors: author names, used only when blind_review is false
+# authors: author names; Check uses them only when blind_review is true, to catch them in the draft
 authors: []
 ---
