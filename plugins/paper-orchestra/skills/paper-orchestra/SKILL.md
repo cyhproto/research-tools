@@ -35,7 +35,7 @@ Read them from the user's command: `/paper-orchestra [stage] [options]`. The ful
 |---|---|---|---|---|
 | gather | materials-drafter | `$PO settings init`, `$PO refs import-check`, `$PO materials validate`, `$PO log verify` | `settings.md`, `materials/idea.md`, `materials/experiment_log.md` | always |
 | outline | outline-planner | `$PO outline validate`, `$PO outline render`, `$PO outline estimate` | `outline.json`, `outline.md` | always |
-| lit-review (`literature`) | literature-scout, literature-writer | `$PO outline tasks`, `$PO refs verify`, `$PO outline inject`, `$PO paper replace` | `references/`, `drafts/lit_sections.md`, Introduction and Related Work in `paper.md` | on a hand-edit conflict |
+| lit-review (`literature`) | literature-scout, literature-writer | `$PO outline tasks`, `$PO refs verify`, `$PO refs counts`, `$PO outline inject`, `$PO paper replace`, `$PO paper references` | `references/`, `drafts/lit_sections.md`, Introduction, Related Work and References in `paper.md` | on a hand-edit conflict |
 | figures | figure-maker, figure-critic | `$PO figures collect` | `figures/` (`<id>.png` or `<id>.mmd`, `src/`, `meta/`, `critic/`, `info.json`) | no |
 | write | section-writer | `$PO paper replace`, `$PO paper references`, `$PO paper save-version` | `drafts/write_sections.md`, `drafts/write_notes.md`, `paper.md`, `drafts/v<n>.md` | on a hand-edit conflict |
 | review | reviewer, meta-reviewer, reviser | `$PO review protect`, `restore` or `changes`, `aggregate`, `decide`, `render`; `$PO paper accept`, `$PO paper references` | `reviews/`, `drafts/marked_v<K>.md`, `drafts/candidate_v<K>.md`, `paper.md`, `review.md` | no |
