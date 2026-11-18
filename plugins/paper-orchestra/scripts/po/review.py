@@ -57,21 +57,33 @@ def parse_review(text: str) -> dict:
     return data
 
 
+SLASH_SCORE_RE = re.compile(r"\s*(-?\d+)\s*/\s*\d+\s*")  # "7/10"
+
+
 def _as_int(v) -> int | None:
-    """int(v) as the original does; None when that fails (bools and None included)."""
+    """int(v) as the original does, and "7/10" as 7; None when that fails (bools and None included)."""
     if isinstance(v, bool) or v is None:
         return None
+    if isinstance(v, str) and (m := SLASH_SCORE_RE.fullmatch(v)):
+        return int(m.group(1))
     try:
         return int(v)
     except (ValueError, TypeError, OverflowError):
         return None
 
 
+def score(review: dict, field: str) -> int | None:
+    """The review's score for field, or None when it is missing, unreadable or out of range."""
+    lo, hi = SCORE_FIELDS[field]
+    v = _as_int(review.get(field))
+    return v if v is not None and lo <= v <= hi else None
+
+
 def aggregate(reviews: list[dict], meta: dict | None) -> dict:
     text_src = meta if meta is not None else (reviews[0] if reviews else {})
     out = {k: v for k, v in text_src.items() if k not in SCORE_FIELDS}
-    for field, (lo, hi) in SCORE_FIELDS.items():
-        vals = [v for v in (_as_int(r.get(field)) for r in reviews) if v is not None and lo <= v <= hi]
+    for field in SCORE_FIELDS:
+        vals = [v for v in (score(r, field) for r in reviews) if v is not None]
         if vals:
             out[field] = round(statistics.mean(vals))
     return out
@@ -380,7 +392,11 @@ def _cmd_aggregate(args) -> int:
     try:
         reviews = []
         for f in files:
-            reviews.append(parse_review(_read(f)))
+            r = parse_review(_read(f))
+            if score(r, "Overall") is None:  # a missing score would silently decide keep-or-undo
+                lo, hi = SCORE_FIELDS["Overall"]
+                raise ValueError(f"no valid Overall score ({lo}-{hi}); got {r.get('Overall', 'none')!r}")
+            reviews.append(r)
         meta = None
         mf = d / "meta.md"
         if mf.is_file():

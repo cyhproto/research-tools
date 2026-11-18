@@ -200,7 +200,7 @@ Before the panel on version 0:
 **Panel on version K**
 1. Dispatch `reviewer` in parallel for each i = 1 … N whose `review:v<K>:r<i>` is not done (§3 resume rule). Mark `review:v<K>:r<i>` when `reviews/v<K>/r<i>.md` exists.
 2. If meta is true and `review:v<K>:meta` is not done (§3 resume rule), dispatch `meta-reviewer`. Mark it when `reviews/v<K>/meta.md` exists.
-3. Run `$PO review aggregate --version K`. Exit 2 names a file that does not parse. Re-dispatch its agent once (same output path), then aggregate again. If it still fails, mark review failed and stop.
+3. Run `$PO review aggregate --version K`. Exit 2 names a file that does not parse, or a review without a valid Overall score (1-10; "7/10" counts as 7). Re-dispatch its agent once (same output path), then aggregate again. If it still fails, mark review failed and stop.
 
 **Rounds**
 1. Run the panel on version 0.

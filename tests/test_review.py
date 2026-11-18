@@ -328,3 +328,33 @@ def test_render_without_write_notes_or_rounds(tmp_path):
     (paper / "drafts/write_notes.md").write_text("No consistency problems found.\n")
     assert main(["review", "render", "--paper", str(paper)]) == 0
     assert "drafts/write_notes.md" in _what_changed(paper)
+
+
+# --- m4 / P37: "7/10" scores; a review without a valid Overall stops aggregate --------------
+def _review_text(**fields):
+    return 'REVIEW JSON:\n```json\n' + json.dumps(fields) + '\n```'
+
+
+def test_slash_scores_count():
+    from po.review import _as_int
+    assert _as_int("7/10") == 7 and _as_int(" 3 / 4 ") == 3 and _as_int("7.5/10") is None
+    assert aggregate([{**OLD, "Overall": "7/10"}, {**OLD, "Overall": 5}], None)["Overall"] == 6
+
+
+@pytest.mark.parametrize("overall", ["seven", None, 11, 0, "missing"])
+def test_aggregate_stops_on_a_review_without_a_valid_overall(tmp_path, capsys, overall):
+    paper = tmp_path / "paper"
+    d = paper / "reviews/v0"
+    d.mkdir(parents=True)
+    (d / "r1.md").write_text(_review_text(**{**OLD, "Overall": "7/10"}))
+    bad = {**OLD, "Overall": overall}
+    if overall == "missing":
+        del bad["Overall"]
+    (d / "r2.md").write_text(_review_text(**bad))
+    assert main(["review", "aggregate", "--paper", str(paper), "--version", "0"]) == 2
+    err = capsys.readouterr().err
+    assert "r2.md" in err and "Overall" in err
+    assert not (paper / "reviews/review_v0.json").exists()
+    (d / "r2.md").write_text(_review_text(**{**OLD, "Overall": 5}))
+    assert main(["review", "aggregate", "--paper", str(paper), "--version", "0"]) == 0
+    assert json.loads((paper / "reviews/review_v0.json").read_text())["Overall"] == 6
