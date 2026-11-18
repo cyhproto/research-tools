@@ -128,6 +128,17 @@ def _style_path(s: Settings, paper_dir: Path) -> str:
         return f"NOT FOUND: {e}"
 
 
+def _style_blind_review(s: Settings, paper_dir: Path) -> tuple[bool, list[str]]:
+    """The chosen style's blind_review, the default when no --blind-review is given (Ruling P36).
+
+    A style that is not found yet falls back to the general default, with a warning."""
+    from .style import StyleNotFound, find_style, load_style
+    try:
+        return load_style(find_style(s.style, paper_dir)).blind_review, []
+    except StyleNotFound as e:
+        return s.blind_review, [f"{e}; blind_review is set to {format_value(s.blind_review)}"]
+
+
 def _cmd_init(args: argparse.Namespace) -> int:
     paper = Path(args.paper)
     if (paper / "settings.md").exists():
@@ -139,6 +150,9 @@ def _cmd_init(args: argparse.Namespace) -> int:
               "profile": args.profile, "hand_edits": args.hand_edits,
               "language": args.language}.items() if v is not None}
     s = Settings(**{**defaults.__dict__, **values})
+    warnings: list[str] = []
+    if "blind_review" not in values:
+        s.blind_review, warnings = _style_blind_review(s, paper)
     if "profile" in values:
         s.max_review_rounds = s.profile_obj.revision_rounds
     try:
@@ -148,7 +162,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         (paper / "settings.md").unlink(missing_ok=True)
         print(e, file=sys.stderr)
         return 2
-    emit({"written": str(paper / "settings.md")})
+    emit({"written": str(paper / "settings.md"), "warnings": warnings})
     return 0
 
 

@@ -84,13 +84,13 @@ The clean-up moves the stage's old outputs into `$PAPER/old/<stage>-<stamp>/`; n
 1. **Settings.** If `$PAPER/settings.md` is missing, ask once for:
    - the style: `ml-conference` (default), `journal`, or your own `paper/style.md`;
    - the cutoff month `YYYY-MM` (default: this month);
-   - blind review (default: on);
+   - blind review (default: the style's value: on for `ml-conference`, off for `journal`, or the `blind_review` of their own style);
    - the language (default: English);
    - author names (optional; Check uses them to catch names in a blind paper);
    - reference-manager exports (optional; BibTeX or CSL JSON): one file of papers with abstracts, one of papers that must be cited.
 
    Skip any question the user's request already answers, such as "use the defaults". Otherwise end your turn and wait for the answer; "defaults" is a fine one. Then:
-   - run `$PO settings init --style <s> --cutoff <YYYY-MM> --blind-review true|false --language <l>`, plus `--profile <p>` from §2;
+   - run `$PO settings init --style <s> --cutoff <YYYY-MM> --language <l>`, plus `--blind-review true|false` only if the user chose a value (without it, `settings init` takes the style's value), plus `--profile <p>` from §2;
    - for authors, run `$PO settings set authors "[Name One, Name Two]"`;
    - copy any exports to `$PAPER/materials/references/library.bib` (or `.json`) and `must_cite.bib` (or `.json`), run `$PO refs import-check`, and show its `warnings`.
 2. **Materials.** If `materials/idea.md` and `materials/experiment_log.md` both exist, do not dispatch. If the user asks to re-draft them, move them into `$PAPER/old/materials-<stamp>/` and dispatch. Otherwise dispatch `materials-drafter`; it writes only the missing files.

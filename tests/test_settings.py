@@ -61,3 +61,34 @@ def test_set_requires_front_matter(tmp_path, capsys):
         assert main(["settings", "set", "profile", "light", "--paper", str(paper)]) == 2
         assert (paper / "settings.md").read_text() == content
     assert "front matter" in capsys.readouterr().err
+
+
+# --- I5 / P36: blind review defaults to the chosen style's value ------------------------------
+@pytest.mark.parametrize("style, blind", [("journal", False), ("ml-conference", True)])
+def test_init_blind_review_follows_the_style(tmp_path, style, blind):
+    paper = tmp_path / "paper"
+    assert main(["settings", "init", "--paper", str(paper), "--style", style]) == 0
+    assert load_settings(paper).blind_review is blind
+    other = tmp_path / "other"  # an explicit flag wins
+    assert main(["settings", "init", "--paper", str(other), "--style", style,
+                 "--blind-review", "false" if blind else "true"]) == 0
+    assert load_settings(other).blind_review is (not blind)
+
+
+def test_init_blind_review_default_style_own_style_and_unknown_style(tmp_path, capsys):
+    import json
+    paper = tmp_path / "paper"
+    assert main(["settings", "init", "--paper", str(paper)]) == 0  # ml-conference
+    assert load_settings(paper).blind_review is True
+    own = tmp_path / "own"
+    own.mkdir()
+    (own / "style.md").write_text("---\nname: mine\nsections: [Abstract]\nlength_words: [100, 200]\n"
+                                  "blind_review: false\n---\n")
+    assert main(["settings", "init", "--paper", str(own)]) == 0
+    assert load_settings(own).blind_review is False
+    capsys.readouterr()
+    unknown = tmp_path / "unknown"
+    assert main(["settings", "init", "--paper", str(unknown), "--style", "my-venue"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert load_settings(unknown).blind_review is True
+    assert len(out["warnings"]) == 1 and "my-venue" in out["warnings"][0]

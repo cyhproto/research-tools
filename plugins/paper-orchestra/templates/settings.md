@@ -3,7 +3,7 @@
 style: ml-conference
 # cutoff: newest publication month (YYYY-MM) that cited work may have
 cutoff: 2026-11
-# blind_review: true removes author names and identifying links from the draft
+# blind_review: true removes author names and identifying links from the draft (default: the style's value)
 blind_review: true
 # language: language the paper is written in
 language: English
@@ -13,6 +13,6 @@ profile: full
 max_review_rounds: 3
 # hand_edits: keep preserves your manual edits on re-draft, revise lets reviewers rework them
 hand_edits: keep
-# authors: author names, used only when blind_review is false
+# authors: author names; Check uses them only when blind_review is true, to catch them in the draft
 authors: []
 ---
