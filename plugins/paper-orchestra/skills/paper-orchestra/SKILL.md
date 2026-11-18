@@ -23,7 +23,7 @@ You run a seven-stage pipeline that drafts a Markdown paper in `<project>/paper/
 Read them from the user's command: `/paper-orchestra [stage] [options]`. The full name `/paper-orchestra:paper-orchestra` is the same command; the stage and options are its arguments.
 
 - No stage: run or resume `next_stage` (if it is stale, follow §10 first), then repeat with the new `next_stage` until a pause, a stop, or no stage is left.
-- `gather | outline | lit-review | figures | write | review | check`: run only that stage (`lit-review` is the state stage `literature`), then report stale dependants (§10). `status`: report only (§10).
+- `gather | outline | lit-review | figures | write | review | check`: run only that stage (`lit-review` is the state stage `literature`), then report stale dependants (§10). Naming a stage is the approval to run it, even when it is stale (§10). `status`: report only (§10).
 - `--profile full|light`: run `$PO settings set profile <p>`. If `settings.md` does not exist yet, pass `--profile <p>` to Gather's `settings init`, or run `$PO settings init --profile <p>` when this run skips Gather.
 - `--hand-edits keep|revise`: overrides the `hand_edits` setting for this review only; never write it to settings. It is recorded so a resume keeps it (§3).
 - `write --only "<Section>" ["<Section>" …]`: passed to `paper replace --only`; the rest of `paper.md` stays. It is recorded so a resume keeps it (§3).
@@ -246,11 +246,14 @@ Every reviewer, meta-reviewer and reviser output file is a checkpoint, through i
 ## 10. Status and stale stages
 
 - **`status`.** Run `$PO state show` and say it in plain words: each stage's status; which stages are stale and why (their inputs, or an earlier stage, changed after they ran); how many checkpoints are done; and the next stage. In a folder where nothing has run, say that no stage has started and the next one is gather. Change nothing.
-- **Stale stages.** Re-running a stage makes the stages after it stale; for example, re-running figures makes write, review and check stale. Before running a stale stage, or the dependants of a stage you just ran, report them and ask:
-  - name what changed and the paper sections that depend on it: materials or figures → Method and Experiments; literature → Introduction and Related Work;
-  - suggest `write --only "<Section>"` for just those sections.
+- **Stale stages.** Re-running a stage makes the stages after it stale; for example, re-running figures makes write, review and check stale.
+  - **A stage the user named** (`/paper-orchestra review`, `/paper-orchestra check`, …): naming it is the approval to run it, stale or not, so run it without asking. Ask only when a stage it depends on is stale (outline needs gather; lit-review and figures need outline; write needs lit-review and figures; review and check need write): say which one and what changed, and ask whether to re-run that stage first. End your turn and wait for the user.
+  - **No stage named:** before running a stale `next_stage`, and after any run that left later stages stale, report them and ask:
+    - name what changed and the paper sections that depend on it: materials or figures → Method and Experiments; literature → Introduction and Related Work;
+    - suggest `write --only "<Section>"` for just those sections.
 
-  End your turn and wait for the user. If the user declines, continue with the first stage that is not done, or stop.
+    End your turn and wait for the user. If the user declines, continue with the first stage that is not done, or stop.
+  - **After a named stage**, report the stages it left stale in the same words and suggest what to re-run; the user decides.
 
 ## 11. Rules
 
