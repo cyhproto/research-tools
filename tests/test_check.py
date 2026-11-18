@@ -174,3 +174,13 @@ def test_finalize_flags_missing_rulings(tmp_path, capsys):
     assert main(["check", "finalize", "--paper", str(q), "--rulings", str(wrong)]) == 0
     cap = capsys.readouterr()
     assert json.loads(cap.out)["rulings_missing"] is False and cap.err == ""
+
+
+def test_finalize_empty_object_rulings_count_as_missing(tmp_path, capsys):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "This improves by 2.3 points.\n\n## Conclusion"))
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    capsys.readouterr()
+    rf = tmp_path / "r.json"; rf.write_text("{}")
+    assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 1
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["rulings_missing"] is True and "missing or empty" in cap.err

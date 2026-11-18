@@ -35,6 +35,7 @@ UPSTREAM: dict[str, list[str]] = {
 
 STATUSES = ("running", "done", "failed")
 STATE_FILE = ".state.json"
+OPTION_PREFIX = "opt:"  # task ids recording a stage's run options, e.g. opt:review:hand-edits=revise
 
 
 def _fresh() -> dict:
@@ -201,6 +202,7 @@ def _cmd_show(args) -> int:
     state = load_state(args.paper)
     emit({"stages": {s: state["stages"].get(s, {}).get("status", "pending") for s in STAGES},
           "stale": stale_stages(args.paper), "tasks_done": len(state["tasks"]),
+          "options": [t for t in state["tasks"] if t.startswith(OPTION_PREFIX)],
           "next_stage": next_stage(args.paper), "warnings": state["warnings"]})
     return 0
 

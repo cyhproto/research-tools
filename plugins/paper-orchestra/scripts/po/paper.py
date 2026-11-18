@@ -342,11 +342,32 @@ def _cmd_replace(args) -> int:
     return 0
 
 
+def late_hand_edits(current_md: str, tool_md: str | None, protected: Sequence[str], new_md: str) -> list[str]:
+    """Hand edits made since the protected list was last set (e.g. during a review) that new_md lacks.
+
+    Paragraphs already protected are left to `review restore` (keep) or `review changes` (revise)."""
+    if tool_md is None:
+        return []
+    prot = {_collapse(p) for p in protected}
+    kept = {_collapse(p) for p in paragraphs(new_md)}
+    return [p for p in hand_edited_paragraphs(current_md, tool_md)
+            if _collapse(p) not in prot and _collapse(p) not in kept]
+
+
+def _user_copy(paper: Path, md: str) -> Path:
+    """A user version holding md: an identical existing one, else a new one."""
+    drafts = paper / "drafts"
+    same = [f for f in sorted(drafts.glob("v*-user.md")) if _read(f) == md] if drafts.is_dir() else []
+    return same[-1] if same else save_version(paper, md, "user")
+
+
 def _cmd_accept(args) -> int:
     """Adopt a tool-made draft (an accepted review candidate) as paper.md and a tool version.
 
     Only the current paper.md's hand edits (vs the previous tool version) are recorded; the
-    adopted draft's own changes are tool text and never count as hand edits."""
+    adopted draft's own changes are tool text and never count as hand edits. Hand edits the
+    draft would drop (made after the last protect) stop the command unless --force; either
+    way the current paper.md is first saved as a user version."""
     from .state import get_protected
     paper = Path(args.paper)
     src = Path(args.src)
@@ -355,11 +376,20 @@ def _cmd_accept(args) -> int:
         return 2
     new_md = _read(src)
     current = _read_paper(paper, False)
-    _record_provenance(paper, current, _tool_md(paper), new_md, get_protected(paper))
+    prev, prot = _tool_md(paper), get_protected(paper)
+    late = late_hand_edits(current, prev, prot, new_md)
+    saved = _user_copy(paper, current) if late else None
+    if late and not args.force:
+        emit({"hand_edits_after_review": late, "saved": str(saved)})
+        return 1
+    _record_provenance(paper, current, prev, new_md, prot)
     paper.mkdir(parents=True, exist_ok=True)
     _write(paper / "paper.md", new_md)
     v = save_version(paper, new_md, "tool")
-    emit({"written": str(paper / "paper.md"), "version": str(v)})
+    out = {"written": str(paper / "paper.md"), "version": str(v)}
+    if saved is not None:
+        out["saved"] = str(saved)
+    emit(out)
     return 0
 
 
@@ -382,12 +412,19 @@ def _cmd_references(args) -> int:
     from .references import update_references
     paper = Path(args.paper)
     style = _style(args)
-    current = _read_paper(paper, True)
+    if args.file:
+        target = Path(args.file)
+        if not target.is_file():
+            print(f"{target} not found", file=sys.stderr)
+            return 2
+        current = _read(target)
+    else:
+        target, current = paper / "paper.md", _read_paper(paper, True)
     if style is None or current is None:
         return 2
     entries = {e.key: e for e in load_library(paper)}
-    _write(paper / "paper.md", update_references(current, entries, style.citation_style))
-    emit({"written": str(paper / "paper.md")})
+    _write(target, update_references(current, entries, style.citation_style))
+    emit({"written": str(target)})
     return 0
 
 
@@ -415,10 +452,13 @@ def register(sub) -> None:
     a = cmds.add_parser("accept", parents=[common_parent()],
                         help="adopt a revised draft as paper.md and a tool version")
     a.add_argument("--from", dest="src", required=True, help="the draft to adopt")
+    a.add_argument("--force", action="store_true",
+                   help="adopt it even if it drops hand edits made after the last protect (they are saved first)")
     a.set_defaults(func=_cmd_accept)
     cmds.add_parser("edits", parents=[common_parent()], help="report hand edits").set_defaults(func=_cmd_edits)
-    cmds.add_parser("references", parents=[common_parent()],
-                    help="regenerate References").set_defaults(func=_cmd_references)
+    ref = cmds.add_parser("references", parents=[common_parent()], help="regenerate References")
+    ref.add_argument("--file", default=None, help="rewrite this file's References instead of paper.md")
+    ref.set_defaults(func=_cmd_references)
     s = cmds.add_parser("save-version", parents=[common_parent()], help="save paper.md as a draft version")
     s.add_argument("--kind", choices=["tool", "user"], default="tool")
     s.set_defaults(func=_cmd_save_version)

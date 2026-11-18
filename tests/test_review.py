@@ -234,3 +234,36 @@ def test_changes_needs_versioned_map(tmp_path, capsys):
     assert _changes(paper, cand, "map.json") == 2
     assert "protected_v<K>.json" in capsys.readouterr().err
     assert "po:keep" in cand.read_text()
+
+
+# --- fix round 1: change labels and outcomes; removals -----------------------
+def _changes_section(paper):
+    md = (paper / "review.md").read_text()
+    return md[md.index("## Changes to your edited paragraphs"):md.index("## Protected paragraphs")]
+
+
+def test_render_changes_marks_kept_and_undone_rounds(tmp_path):
+    paper = tmp_path / "paper"
+    (paper / "reviews").mkdir(parents=True)
+    (paper / "reviews/rounds.json").write_text(json.dumps([
+        {"version": 1, "overall_before": 5, "overall_after": 6, "outcome": "ACCEPTED_SCORE_INCREASE"},
+        {"version": 2, "overall_before": 6, "overall_after": 5, "outcome": "REJECTED_SCORE_DECREASE"}]))
+    (paper / "reviews/changes_v0.json").write_text(json.dumps([{"before": "Mine A.", "after": "Theirs A."}]))
+    (paper / "reviews/changes_v1.json").write_text(json.dumps([{"before": "Mine B.", "after": "Theirs B."}]))
+    (paper / "reviews/restorations.json").write_text(json.dumps({"v1": [{"id": "1", "action": "restored"}]}))
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    sec = _changes_section(paper)
+    assert "Round v1 (kept)" in sec and "Round v2 (undone" in sec and "Round v0" not in sec
+    assert sec.index("Theirs A.") < sec.index("Round v2") < sec.index("Theirs B.")
+    assert "Paragraph 1 (round v2): restored" in (paper / "review.md").read_text()
+
+
+def test_emptied_marker_pair_is_a_removal(tmp_path):
+    paper, marked, cand = _revise_setup(tmp_path)
+    cand.write_text(marked.replace("My own words here.\n", ""))
+    assert _changes(paper, cand) == 0
+    assert json.loads((paper / "reviews/changes_v0.json").read_text()) == [
+        {"before": "My own words here.", "after": None}]
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    sec = _changes_section(paper)
+    assert "paragraph removed" in sec and "After:" not in sec and "not decided yet" in sec

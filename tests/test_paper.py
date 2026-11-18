@@ -211,3 +211,65 @@ def test_accept_missing_file(tmp_path, capsys):
     assert _main(["paper", "accept", "--paper", str(tmp_path), "--from", str(tmp_path / "nope.md")]) == 2
     assert "not found" in capsys.readouterr().err
     assert (tmp_path / "paper.md").read_text() == ACCEPT_TOOL
+
+
+# --- fix round 1: accept refuses late hand edits; references --file ----------
+def _accept_setup(tmp_path):
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    save_version(paper, ACCEPT_TOOL, "tool")
+    (paper / "paper.md").write_text(ACCEPT_TOOL.replace("Exp one.", "Exp one, in my own words."))
+    base = ["--paper", str(paper)]
+    assert _main(["review", "protect", *base, "--out", str(paper / "drafts/marked_v0.md")]) == 0
+    return paper, base, (paper / "drafts/marked_v0.md").read_text(), paper / "drafts/candidate_v1.md"
+
+
+def test_accept_refuses_edits_made_after_protect(tmp_path, capsys):
+    import json
+    from pathlib import Path
+    paper, base, marked, cand = _accept_setup(tmp_path)
+    cand.write_text(marked.replace("Method two.", "Method two, revised."))
+    assert _main(["review", "restore", *base, "--candidate", str(cand), "--map",
+                  str(paper / "reviews/protected_v0.json"), "--pre", str(paper / "drafts/marked_v0.md")]) == 0
+    late = (paper / "paper.md").read_text().replace("Intro para.", "Intro para, edited during the review.")
+    (paper / "paper.md").write_text(late)
+    capsys.readouterr()
+    assert _main(["paper", "accept", *base, "--from", str(cand)]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["hand_edits_after_review"] == ["Intro para, edited during the review."]
+    assert Path(out["saved"]).read_text() == late and (paper / "paper.md").read_text() == late
+    assert _main(["paper", "accept", *base, "--from", str(cand), "--force"]) == 0
+    assert (paper / "paper.md").read_text() == cand.read_text()
+    assert [p.name for p in (paper / "drafts").glob("v*-user.md")] == [Path(out["saved"]).name]
+
+
+def test_accept_revise_mode_rewritten_user_paragraph(tmp_path, capsys):
+    from po.state import get_protected
+    paper, base, marked, cand = _accept_setup(tmp_path)
+    cand.write_text(marked.replace("Exp one, in my own words.", "Exp one, reworded by the reviser."))
+    assert _main(["review", "changes", *base, "--candidate", str(cand), "--map",
+                  str(paper / "reviews/protected_v0.json")]) == 0
+    assert _main(["paper", "accept", *base, "--from", str(cand)]) == 0
+    assert (paper / "paper.md").read_text() == cand.read_text() and "po:keep" not in cand.read_text()
+    assert get_protected(paper) == []
+
+
+def test_references_file_rewrites_only_that_file(tmp_path, capsys):
+    import dataclasses
+    import json
+    from po.library import LibraryEntry
+    paper = tmp_path / "paper"
+    (paper / "references").mkdir(parents=True)
+    e = LibraryEntry("Kim2024Own", "Own Title", ["J. Kim"], "Venue", 2024, None, None, "openalex", False,
+                     "Introduction", "")
+    (paper / "references/library.json").write_text(json.dumps([dataclasses.asdict(e)]))
+    (paper / "paper.md").write_text("# T\n\n## Method\n\nNo citations.\n")
+    cand = paper / "drafts/candidate_v1.md"
+    cand.parent.mkdir()
+    cand.write_text("# T\n\n## Method\n\nAs shown [@Kim2024Own].\n\n## References\n\n- stale entry\n")
+    assert _main(["paper", "references", "--paper", str(paper), "--file", str(cand)]) == 0
+    assert "- [@Kim2024Own] J. Kim." in cand.read_text() and "stale entry" not in cand.read_text()
+    assert (paper / "paper.md").read_text() == "# T\n\n## Method\n\nNo citations.\n"
+    capsys.readouterr()
+    assert _main(["paper", "references", "--paper", str(paper), "--file", str(paper / "nope.md")]) == 2
+    assert "not found" in capsys.readouterr().err

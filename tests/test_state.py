@@ -101,3 +101,23 @@ def test_json_key_selector_for_figures(tmp_path):
     o["plotting_plan"].append({"figure_id": "b"})
     (tmp_path / "outline.json").write_text(json.dumps(o))
     assert stale_stages(tmp_path) == ["figures"]
+
+
+def test_selector_unparseable_json_still_counts_edits(tmp_path):
+    (tmp_path / "outline.json").write_text("{not json")
+    broken = hash_inputs(tmp_path, "figures")
+    (tmp_path / "outline.json").write_text("{still not json")
+    assert hash_inputs(tmp_path, "figures") != broken
+    (tmp_path / "outline.json").unlink()
+    assert hash_inputs(tmp_path, "figures") != broken
+
+
+def test_state_show_lists_run_options(tmp_path, capsys):
+    import json
+    from po.cli import main
+    for t in ("lit:t1", "opt:review:hand-edits=revise", "opt:write:only=Related Work"):
+        task_done(tmp_path, t)
+    assert main(["state", "show", "--paper", str(tmp_path)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["options"] == ["opt:review:hand-edits=revise", "opt:write:only=Related Work"]
+    assert out["tasks_done"] == 3

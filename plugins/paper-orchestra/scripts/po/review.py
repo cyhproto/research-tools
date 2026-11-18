@@ -8,7 +8,9 @@ Bookkeeping files written under <paper>/reviews/ (all JSON, read by `render`):
   restorations.json    {"v<K>": [{id, action}]}, replaced per version by `restore`
   changes_v<K>.json    [{before, after}] for the protected paragraphs a revise-mode
                        revision of v<K> changed (`changes`; K comes from the
-                       map's name, protected_v<K>.json)
+                       map's name, protected_v<K>.json; after is null when removed).
+                       `render` labels them, and the restorations, with the
+                       candidate version K+1 and that round's outcome
   worklog_v<K>.json    the reviser's worklog for the round on v<K>, with keys
                        addressed_weaknesses, integrated_answers, actions_taken,
                        experiments_requested, suggestions_for_protected
@@ -239,7 +241,8 @@ def _reinsert(text: str, id_: str, orig: str, pre: str, occ: int = 0) -> tuple[s
 
 
 def changed_protected(revised_md: str, originals: dict[str, str]) -> list[dict]:
-    """Changed protected paragraphs; `after` is None when marker and text were both deleted.
+    """Changed protected paragraphs; `after` is None when the paragraph was removed (its marker
+    pair emptied, or marker and text both deleted).
 
     A paragraph whose markers were dropped but whose text is still present verbatim is unchanged."""
     text = revised_md.replace("\r\n", "\n")
@@ -252,7 +255,7 @@ def changed_protected(revised_md: str, originals: dict[str, str]) -> list[dict]:
             if _collapse(orig) not in present:
                 out.append({"before": orig, "after": None})
         elif _collapse(found[id_]) != _collapse(orig):
-            out.append({"before": orig, "after": found[id_]})
+            out.append({"before": orig, "after": found[id_] if found[id_].strip() else None})
     return out
 
 
@@ -271,14 +274,20 @@ def _bullets(items: list[str], empty: str) -> str:
     return "\n".join(f"- {i}" for i in items) if items else empty
 
 
-def _change_lines(changes: list[dict]) -> list[str]:
+def _change_lines(changes: list[dict], rounds: list[dict]) -> list[str]:
+    """`version` of a change is the candidate it belongs to; its round outcome says if it stuck."""
+    outcome = {r.get("version"): str(r.get("outcome", "")) for r in rounds}
     out = []
     for c in changes:
+        o = outcome.get(c.get("version"), "")
+        status = ("kept" if o.startswith("ACCEPTED") else
+                  "undone, not applied" if o.startswith("REJECTED") else "not decided yet")
         after = c.get("after")
-        out.append(f"- Round v{c.get('version')}: "
-                   + ("paragraph rewritten." if after is not None else "paragraph removed."))
+        removed = after is None or not str(after).strip()
+        out.append(f"- Round v{c.get('version')} ({status}): "
+                   + ("paragraph removed." if removed else "paragraph rewritten."))
         out.append(f"  - Before: {_collapse(str(c.get('before', '')))}")
-        if after is not None:
+        if not removed:
             out.append(f"  - After: {_collapse(str(after))}")
     return out
 
@@ -309,7 +318,7 @@ def render_review_md(rounds: list[dict], todo: list[str], suggestions: list[str]
         "## What changed\n\n" + ("\n".join(changed) if changed else "Nothing yet."),
         "## Experiments reviewers asked for\n\n" + _bullets(_dedup(todo), "None."),
         "## Suggestions for your edited paragraphs\n\n" + _bullets(_dedup(suggestions), "None."),
-        "## Changes to your edited paragraphs\n\n" + ("\n".join(_change_lines(changes or [])) or "None."),
+        "## Changes to your edited paragraphs\n\n" + ("\n".join(_change_lines(changes or [], rounds)) or "None."),
         "## Protected paragraphs\n\n" + prot_body,
         "## Check\n\n" + ((check_md or "").strip("\n") or "Not run yet."),
     ]
@@ -462,11 +471,13 @@ def _cmd_changes(args) -> int:
 
 
 def _load_changes(rev: Path) -> list[dict]:
+    """Changes from every changes_v<K>.json, labelled with the candidate version K+1."""
     out = []
-    for f in sorted(rev.glob("changes_v*.json"), key=lambda p: (_version_of(p) is None, _version_of(p) or 0)):
+    files = [(k, f) for f in rev.glob("changes_v*.json") if (k := _version_of(f)) is not None]
+    for k, f in sorted(files):
         data = _load(f, [])
         if isinstance(data, list):
-            out += [{"version": _version_of(f), **c} for c in data if isinstance(c, dict)]
+            out += [{**c, "version": k + 1} for c in data if isinstance(c, dict)]
     return out
 
 
@@ -475,8 +486,8 @@ def _cmd_render(args) -> int:
     rev = paper / "reviews"
     rounds = _load(rev / "rounds.json", [])
     resto = _load(rev / "restorations.json", {})
-    if isinstance(resto, dict):
-        resto = [{"version": int(k[1:]) if k[1:].isdigit() else None, **a}
+    if isinstance(resto, dict):  # keyed by the protected draft v<K>; label with its candidate K+1
+        resto = [{"version": int(k[1:]) + 1 if k[1:].isdigit() else None, **a}
                  for k, v in sorted(resto.items(), key=lambda kv: (len(kv[0]), kv[0])) for a in v]
     else:
         resto = []

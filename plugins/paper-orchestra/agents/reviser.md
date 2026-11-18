@@ -13,7 +13,7 @@ Adapted from PaperOrchestra (Apache-2.0), methods/prompts/content_refinement_age
 
 ## Dispatch
 The orchestrator gives you absolute paths. Use them as given:
-- the draft to revise. In keep mode it is a marked draft whose protected paragraphs are wrapped in lines `<!-- po:keep N -->` and `<!-- /po:keep N -->`; in revise mode it is the plain draft;
+- the draft to revise: the marked draft in both modes, whose protected paragraphs (the user's hand edits) are wrapped in lines `<!-- po:keep N -->` and `<!-- /po:keep N -->`, and the mode, keep or revise (see [X7]);
 - the aggregated review `reviews/review_v<K>.json`. It has the reviewer fields: Summary, Strengths, Weaknesses, Questions, Limitations, Ethical Concerns, Decision, plus the averaged scores Originality, Quality, Clarity, Significance, Soundness, Presentation, Contribution, Overall, Confidence. Weaknesses and Questions drive your edits [X1]; Strengths are preserved [X2]; Limitations are folded into the honest Limitations section [X6]; if Ethical Concerns is true, address it in the text where appropriate; Decision and the scores are context only;
 - the explicit list of previous worklog paths (`reviews/worklog_v*.json`), which may be empty: what earlier rounds already changed. You cannot glob, so use only the paths you are given;
 - `materials/experiment_log.md`: the ground truth for all data and metrics. Numbers may carry source tags such as `[src: ...]`, `[src#id: ...]`, `[calc: ...]` or `[manual: ...]`;
