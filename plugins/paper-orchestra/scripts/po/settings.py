@@ -152,7 +152,12 @@ def _cmd_init(args: argparse.Namespace) -> int:
     s = Settings(**{**defaults.__dict__, **values})
     warnings: list[str] = []
     if "blind_review" not in values:
-        s.blind_review, warnings = _style_blind_review(s, paper)
+        from .style import StyleError
+        try:
+            s.blind_review, warnings = _style_blind_review(s, paper)
+        except StyleError as e:  # the user's own style must be fixed first
+            print(e, file=sys.stderr)
+            return 2
     if "profile" in values:
         s.max_review_rounds = s.profile_obj.revision_rounds
     try:

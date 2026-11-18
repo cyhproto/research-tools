@@ -8,8 +8,15 @@ from .settings import PLUGIN_DIR
 USER_STYLE_DIR = Path("~/.claude/paper-orchestra/styles").expanduser()
 
 
+CITATION_STYLES = ("author-year", "numbered")
+
+
 class StyleNotFound(FileNotFoundError):
     pass
+
+
+class StyleError(ValueError):
+    """A style file that cannot be used; the message names the file and the problem."""
 
 
 @dataclass
@@ -37,19 +44,47 @@ def find_style(name: str, paper_dir: Path, user_dir: Path = USER_STYLE_DIR,
     raise StyleNotFound(f"style {name!r} not found; searched: " + ", ".join(str(c) for c in candidates))
 
 
+def _names(data: dict, key: str, required: bool, fail) -> list[str]:
+    v = data.get(key, None if required else [])
+    if not (isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v)) or (required and not v):
+        fail(f"{key} must be a list of section names, such as [Abstract, Introduction], got {v!r}")
+    return list(v)
+
+
 def load_style(path: Path) -> StyleGuide:
-    data, body = parse_frontmatter(Path(path).read_text(encoding="utf-8"))
-    words = data.get("length_words", [0, 0])
+    """Load a style guide; raises StyleError, naming the file, when its front matter is unusable."""
+    path = Path(path)
+    data, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+
+    def fail(msg: str):
+        raise StyleError(f"style file {path}: {msg}")
+
+    if not data:
+        fail("no front matter: start the file with a '---' line, then the settings, then a closing '---' line")
+    sections = _names(data, "sections", True, fail)
+    lists = {k: _names(data, k, False, fail) for k in ("optional_sections", "literature_sections",
+                                                       "required_statements")}
+    words = data.get("length_words")
+    if not (isinstance(words, list) and len(words) == 2
+            and all(isinstance(w, int) and not isinstance(w, bool) and w >= 0 for w in words)
+            and words[0] <= words[1]):
+        fail(f"length_words must be two whole numbers [min, max] with min <= max, such as [5500, 7500], got {words!r}")
+    blind = data.get("blind_review", False)
+    if not isinstance(blind, bool):
+        fail(f"blind_review must be true or false, got {blind!r}")
+    citation = data.get("citation_style", "author-year")
+    if citation not in CITATION_STYLES:
+        fail(f"citation_style must be one of {', '.join(CITATION_STYLES)}, got {citation!r}")
     return StyleGuide(
-        name=str(data.get("name", Path(path).stem)),
-        sections=list(data.get("sections", [])),
-        optional_sections=list(data.get("optional_sections", [])),
-        literature_sections=list(data.get("literature_sections", [])),
+        name=str(data.get("name", path.stem)),
+        sections=sections,
+        optional_sections=lists["optional_sections"],
+        literature_sections=lists["literature_sections"],
         length_words=(words[0], words[1]),
-        blind_review=bool(data.get("blind_review", False)),
-        citation_style=str(data.get("citation_style", "author-year")),
-        required_statements=list(data.get("required_statements", [])),
+        blind_review=blind,
+        citation_style=citation,
+        required_statements=lists["required_statements"],
         language=str(data.get("language", "English")),
         body=body,
-        path=Path(path),
+        path=path,
     )

@@ -288,11 +288,11 @@ def save_version(paper_dir, md: str, kind: str = "tool") -> Path:
 
 def _style(args):
     from .settings import SettingsError, load_settings
-    from .style import StyleNotFound, find_style, load_style
+    from .style import StyleError, StyleNotFound, find_style, load_style
     try:
         s = load_settings(Path(args.paper))
         return load_style(find_style(s.style, Path(args.paper)))
-    except (SettingsError, StyleNotFound) as e:
+    except (SettingsError, StyleNotFound, StyleError) as e:
         print(e, file=sys.stderr)
         return None
 

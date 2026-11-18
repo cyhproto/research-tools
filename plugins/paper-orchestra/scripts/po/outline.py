@@ -315,7 +315,7 @@ def _need(paper: Path):
 def _cmd_validate(args) -> int:
     from .bibimport import load_imports
     from .settings import SettingsError, load_settings
-    from .style import StyleNotFound, find_style, load_style
+    from .style import StyleError, StyleNotFound, find_style, load_style
     paper = Path(args.paper)
     project = Path(args.project) if args.project else paper.resolve().parent
     outline, rc = _load(paper)
@@ -327,7 +327,7 @@ def _cmd_validate(args) -> int:
         try:
             s = load_settings(paper)
             style = load_style(find_style(s.style, paper))
-        except (SettingsError, StyleNotFound) as e:
+        except (SettingsError, StyleNotFound, StyleError) as e:
             print(e, file=sys.stderr)
             return 2
         keys = [r.key for r in load_imports(paper)["must_cite"]]
