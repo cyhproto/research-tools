@@ -1,0 +1,140 @@
+{
+  "plotting_plan": [
+    {
+      "figure_id": "fig_framework_overview",
+      "title": "Framework Overview",
+      "plot_type": "diagram",
+      "data_source": "idea.md",
+      "objective": "Block diagram of the proposed sliding-window pipeline and its three stages.",
+      "aspect_ratio": "16:9"
+    },
+    {
+      "figure_id": "fig_main_results_radar",
+      "title": "Main Results",
+      "plot_type": "plot",
+      "data_source": "experiment_log.md",
+      "objective": "Radar Chart comparing our method with the baselines on the five metrics of the main table.",
+      "aspect_ratio": "1:1"
+    },
+    {
+      "figure_id": "fig_ablation_window_size",
+      "title": "Window Size Ablation",
+      "plot_type": "plot",
+      "data_source": "both",
+      "objective": "Line chart of accuracy against window size from the ablation runs.",
+      "aspect_ratio": "4:3"
+    }
+  ],
+  "intro_related_work_plan": {
+    "introduction_strategy": {
+      "hook_hypothesis": "Video-LLMs are currently the dominant paradigm for short clips.",
+      "problem_gap_hypothesis": "Context window limits prevent efficient scaling beyond 5s clips on the benchmarks in the log.",
+      "search_directions": [
+        "Find highly cited papers establishing the real-world impact of context limits in video generation",
+        "Search for published 'long-context video generation' surveys",
+        "Identify foundational papers establishing causal video generation"
+      ]
+    },
+    "related_work_strategy": {
+      "overview": "Investigate two paradigms to show why a sliding-window approach is needed.",
+      "subsections": [
+        {
+          "subsection_title": "2.1 Autoregressive Video Generation",
+          "methodology_cluster": "Discrete Tokenization & Transformers",
+          "sota_investigation_mission": "Identify recent autoregressive models and their maximum stable generation length.",
+          "limitation_hypothesis": "These models suffer from drift because they lack bidirectional context.",
+          "limitation_search_queries": [
+            "Autoregressive video generation error propagation metrics",
+            "Causal masking limitations in temporal video transformers"
+          ],
+          "bridge_to_our_method": "Our method introduces bidirectional blocks to fix the hypothesized drift."
+        },
+        {
+          "subsection_title": "2.2 Diffusion-Based Editing Frameworks",
+          "methodology_cluster": "DDIM Inversion & Cross-Attention",
+          "sota_investigation_mission": "Find recent papers using DDIM inversion for editing and the benchmarks they use.",
+          "limitation_hypothesis": "They fail at large structural changes because cross-attention maps are too rigid.",
+          "limitation_search_queries": [],
+          "bridge_to_our_method": "Flow-guided attention allows spatial deformation, addressing rigidity."
+        }
+      ]
+    }
+  },
+  "section_plan": [
+    {
+      "section_title": "Abstract",
+      "subsections": [
+        {
+          "subsection_title": "Abstract Content",
+          "content_bullets": [
+            "State the problem of temporal inconsistency.",
+            "Introduce the proposed method.",
+            "Highlight the key results from the main table in experiment_log.md."
+          ],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "3. Method",
+      "subsections": [
+        {
+          "subsection_title": "3.1 Temporal-Aware Attention Mechanism",
+          "content_bullets": [
+            "Define the query-key matching logic as in idea.md",
+            "Explain the masking strategy"
+          ],
+          "must_cite": ["Kim2024Own"],
+          "citation_hints": [
+            "Vaswani et al. (Attention Is All You Need)"
+          ]
+        },
+        {
+          "subsection_title": "3.2 Optimization Objective",
+          "content_bullets": ["Detail the loss function from idea.md", "Discuss regularization terms"],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "4. Experiments",
+      "subsections": [
+        {
+          "subsection_title": "4.1 Experimental Setup",
+          "content_bullets": ["Implementation details", "Hyperparameters and datasets used"],
+          "citation_hints": [
+            "research paper or technical report introducing 'WebVid-10M'",
+            "research paper or technical report introducing 'AdamW optimizer'"
+          ]
+        },
+        {
+          "subsection_title": "4.2 Main Results",
+          "content_bullets": ["Comparison with baselines", "Quantitative analysis of the main table"],
+          "citation_hints": [
+            "Ho et al. (Denoising Diffusion Probabilistic Models)"
+          ]
+        }
+      ]
+    },
+    {
+      "section_title": "Conclusion",
+      "subsections": [
+        {
+          "subsection_title": "Conclusion Content",
+          "content_bullets": ["Summarize the contribution", "Point to future work"],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "Limitations",
+      "subsections": [
+        {
+          "subsection_title": "Limitations Content",
+          "content_bullets": ["State the evaluation scope limits from experiment_log.md"],
+          "citation_hints": []
+        }
+      ]
+    }
+  ]
+}
