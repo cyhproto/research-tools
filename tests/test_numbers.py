@@ -94,3 +94,9 @@ def test_a_result_after_a_cross_reference_is_still_checked():
     assert vals("In Figure 3, 12.5% of the samples fail.") == [12.5]
     assert vals("Tables 12 and 33.5% more errors.") == [33.5]
     assert vals("Sections 4.1 and 4.2, 57.5 on average.") == [57.5]
+
+
+def test_ratio_checked_and_resolution_skipped():
+    assert vals("It is 13.2x faster on 512x512 images than 12.5× before.") == [13.2, 12.5]
+    assert matches(find_numbers("13.2x")[0], materials_numbers(["speedup 13.2x on 512x512 inputs"]))
+    assert [h.num.value for h in unmatched("We get 13.2x and 14.1x on 512x512.", ["speedup 13.2x"], set())] == [14.1]

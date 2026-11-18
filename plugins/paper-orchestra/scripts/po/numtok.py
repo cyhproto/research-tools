@@ -22,6 +22,13 @@ def _is_name_char(c: str) -> bool:
     return c.isalpha() or c == "_"
 
 
+def _ratio_x(text: str, e: int, body: str) -> bool:
+    """A ratio written "3.2x" (read like "3.2×"): one x or X right after the number, then no
+    letter or digit, so "512x512", "0x1F" and "3.2xl" stay names."""
+    return (text[e] in "xX" and not body.endswith("%")
+            and (e + 1 == len(text) or not (_is_name_char(text[e + 1]) or text[e + 1].isdigit())))
+
+
 def find_numbers(text: str) -> list[Num]:
     out: list[Num] = []
     for m in _NUM_RE.finditer(text):
@@ -35,7 +42,7 @@ def find_numbers(text: str) -> list[Num]:
                 continue
             if body.startswith(".") and prev == ".":
                 continue
-        if e < len(text) and _is_name_char(text[e]):
+        if e < len(text) and _is_name_char(text[e]) and not _ratio_x(text, e, body):
             continue
         start = s
         sign = 1.0

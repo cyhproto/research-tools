@@ -26,3 +26,10 @@ def test_forms():
 def test_name_prefixes_and_suffixes():
     assert _v("ResNet-50") == [] and _v("v2.1") == [] and _v("Fig.3") == []
     assert _v("5%x") == []
+
+
+# --- m10 / P37: a ratio written "3.2x" is a number, as "3.2×" is --------------------------------
+def test_ratio_with_trailing_x():
+    assert _v("3.2x faster") == [3.2] and _v("a 10X speedup") == [10.0] and _v("(1.5x).") == [1.5]
+    assert _v("3.2× faster") == [3.2] and find_numbers("3.2x")[0].token == "3.2"
+    assert _v("512x512 images") == [] and _v("0x1F") == [] and _v("3.2xl") == [] and _v("5%x") == []

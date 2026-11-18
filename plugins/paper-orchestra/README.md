@@ -144,7 +144,7 @@ Search queries reveal the topic keywords of your work to the search services (Op
 ## Limitations
 
 - The reviewers are the same model family as the writer. Their scores are a relative signal for keeping or undoing a revision, not a prediction of acceptance.
-- Numbers like `1.2M` are not checked against your logs.
+- Numbers with letters attached, like `1.2M` or `512x512`, are not checked against your logs. Ratios like `3.2x` are.
 - Diagrams are Mermaid, not publication artwork.
 - The literature budget is set at outline time.
 - The paper is a draft. Read it, check every claim and citation, and edit it before you share it.
