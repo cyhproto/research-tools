@@ -7,7 +7,7 @@ import sys
 from . import __version__
 
 # Names of po.<name> modules; each exposes register(subparsers).
-COMMAND_MODULES: list[str] = ["settings", "state", "sourcetags", "materials", "outline", "library", "plotrun", "figures", "paper", "review", "check"]
+COMMAND_MODULES: list[str] = ["settings", "state", "sourcetags", "materials", "outline", "library", "plotrun", "figures", "paper", "review", "check", "doctor"]
 
 
 def common_parent() -> argparse.ArgumentParser:
