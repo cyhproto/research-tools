@@ -26,3 +26,8 @@ def test_required_phrases():
     for s in ["gather", "outline", "lit-review", "figures", "write", "review", "check", "status",
               "4 agents", "Run /paper-orchestra again to continue", "--hand-edits", "--profile", "--only"]:
         assert s in body, s
+
+def test_scratch_files_stay_in_the_paper_folder():
+    assert "$PAPER/.tmp/" in SKILL.read_text()
+    for f in [SKILL, *Path("plugins/paper-orchestra/agents").glob("*.md")]:
+        assert "/tmp" not in f.read_text(), f
