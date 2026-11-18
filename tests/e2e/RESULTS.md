@@ -234,3 +234,33 @@ These changes address observations above. They were checked with unit tests and 
   - scratch files go under `$PAPER/.tmp/` (`702e80b`).
 - **README** (`4f60a7a`): journal statements, reference corrections, and the full-profile ceiling. A full-profile review round, measured from the Task 21 transcripts, takes 716 s and 3.00 M tokens: 1.39 M for its agents and 1.60 M for the orchestrating session. The 1.5 M per round quoted in the Task 21 section counted the agents only. With all 3 rounds, the sample would take about 56 minutes and 21 M tokens.
 - **Journal fixture** (`afbe2ed`): its abstracts are now paraphrased. The journal scenario above ran with the verbatim ones.
+
+## Before publishing: smoke runs and fresh install (Task 23)
+
+Run on 2026-11-19 with Claude Code 2.1.327, using the headless setup above, after the final review's fixes.
+
+### Smoke runs
+
+These were live `claude -p` runs with `--plugin-dir`; together they used about 0.72 M tokens.
+
+| Run | Folder | Result | Tokens |
+| --- | --- | --- | --- |
+| `/paper-orchestra status` | empty | All stages pending, next stage gather; no files written. | 0.13 M |
+| `/paper-orchestra gather` | `paper/` holds only `main.tex` | Named `main.tex` as a file the tool doesn't create, asked whether to continue, and stopped; nothing written. | 0.18 M |
+| `/paper-orchestra check` | a copy of the journal scenario's project | Ran `check run`, the checker (16 rulings) and `finalize`. Result: `NOT READY: 4 problems`: 2 title-only over-claims and the 2 required journal statements. The two numbers quoted from cited abstracts no longer FAIL, and the report records `paper_sha256`. | 0.41 M |
+
+### Fresh install from GitHub
+
+This was done in an empty profile (`CLAUDE_CONFIG_DIR` set to a new temp folder), so nothing was installed into the user's own setup.
+
+1. **Install.** These commands added the marketplace and installed the plugin:
+
+   ```
+   claude plugin marketplace add cyhproto/research-tools
+   claude plugin install paper-orchestra@research-tools
+   ```
+
+   `claude plugin list` then showed `paper-orchestra@research-tools`, version 0.1.0, enabled. The installed copy is at `<config>/plugins/cache/research-tools/paper-orchestra/0.1.0/`, with `styles/` inside, as the README says.
+2. **Status.** `/paper-orchestra status` ran from that installed copy in an empty folder. It reported every stage pending, the next stage gather, and no warnings, and it wrote no files. It used 0.13 M tokens.
+
+The empty profile has no login, so this run used the user's login and loaded the installed copy with `--plugin-dir`.
