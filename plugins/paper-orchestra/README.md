@@ -27,7 +27,7 @@ The command is `/paper-orchestra`. Claude Code resolves it to the plugin's skill
 
 Set these in your shell before starting Claude Code. You create the keys yourself.
 
-- `OPENALEX_API_KEY`: free, and recommended. Requests without a key share a small daily budget, so a big literature search may run out.
+- `OPENALEX_API_KEY`: free, and recommended. Requests without a key share a small daily budget, so a big literature search may run out. Papers it could not look up are reported as `lookup-failed` and looked up again the next time Literature runs.
 - `SEMANTIC_SCHOLAR_API_KEY`: used only if it is set.
 
 The tool never sends your email or other personal details to these services.

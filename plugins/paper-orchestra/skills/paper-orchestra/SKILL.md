@@ -142,7 +142,7 @@ Run both branches together, with at most 4 agents at once across both. Send at m
 6. Run `$PO outline inject`.
 7. If `lit:writer` is not done (§3 resume rule), dispatch `literature-writer`. When `drafts/lit_sections.md` exists, run `$PO state task-done lit:writer`.
 8. Run `$PO paper replace --owner literature-writer --from $PAPER/drafts/lit_sections.md`. On a conflict, see **Hand-edit conflicts** below.
-9. Report the four counts from `refs verify`: `with_abstract`, `title_only`, `must_cite`, and `dropped` (with `dropped_by_reason`).
+9. Report the four counts from `refs verify`: `with_abstract`, `title_only`, `must_cite`, and `dropped` (with `dropped_by_reason`). If `dropped_by_reason` has `lookup-failed`, say that those papers could not be looked up and are retried the next time Literature runs (`refs verify` looks them up again). Name the likely cause: the free daily lookup budget. Without a key, OpenAlex shares one small budget among everyone on the same network address; setting `OPENALEX_API_KEY` raises it.
 
 **Figures**
 
