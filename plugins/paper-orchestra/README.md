@@ -68,6 +68,8 @@ Options:
 
 Gather asks once for the style (`ml-conference`, `journal`, or your own `paper/style.md`), the cutoff month, blind review, language and author names. Say "defaults" to accept them.
 
+With the `journal` style, Check says NOT READY until you add the two statements the style requires, "Data and code availability" and "Declaration of competing interests", each as a `##` section before References. No agent writes them, because only you know what they must say.
+
 Re-running a stage that others depend on marks the later stages stale and names the paper sections affected. You choose what to re-run.
 
 ## What it writes
@@ -110,7 +112,7 @@ Measured usage on the sample run (the TSAM example from the original project, `f
 - about 15 million tokens, mostly cache reads: 12.4 million cache reads, 1.5 million cache writes, 1.0 million other input (mostly web search results) and 0.42 million output;
 - Claude Code's estimate at API list prices: about $17. A subscription does not bill this; it shows the scale.
 
-That review stopped after one round, because the revision scored lower and was undone. Each further round adds about 12 minutes and 1.5 million tokens.
+That review stopped after one round, because the revision scored lower and was undone. Each further round adds about 12 minutes and 3 million tokens: 1.4 million for the reviser and the four review agents, and 1.6 million for the session that coordinates them. With all 3 rounds, the `full` profile on this sample comes to about 56 minutes and 21 million tokens.
 
 **If you hit a usage limit**, the run stops with finished work kept. Wait for the limit to reset, then run `/paper-orchestra` again. It continues from the last finished piece (a batch of searches, a figure, a review, a revision) and never redoes finished work.
 
@@ -124,6 +126,7 @@ That review stopped after one round, because the revision scored lower and was u
   - `revise`: the reviser may rewrite them too, and every change is listed in `review.md` (before and after).
 - Accepting a review revision never silently drops your edits. If you edited `paper.md` during a review, it shows the affected paragraphs and asks first. Your version is always saved in `drafts/`.
 - Re-running Gather, Outline or Figures never changes `paper.md`.
+- **References** is rebuilt from `references/library.json` at every write and review, so a hand edit to a reference line is replaced. Correct the entry in `references/library.json` instead; the correction survives later `refs verify` runs, unless you start the library fresh when re-running Literature. Must-cite papers are the exception: their entries are rebuilt from your `must_cite.bib` and the online lookup at every `refs verify`, and the lookup's title, authors, year and venue win, so correct them again after each Literature run. Other text you write under `## References` is kept after the list, and Check asks you to give it its own heading.
 
 ## Importing your references
 
