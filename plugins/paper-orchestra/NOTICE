@@ -10,3 +10,7 @@ Modifications:
 - honest Limitations section
 - reviewers' experiment requests kept as a to-do list
 - abstract-less papers kept with limited use
+- the figure pipeline without the few-shot example bank, with Mermaid diagrams
+- the reviser works on a marked draft in both hand-edit modes
+- the literature scout receives the broader project problem
+- the Check stage replaces the PDF compile and format loop
