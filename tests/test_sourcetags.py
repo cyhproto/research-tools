@@ -117,3 +117,10 @@ def test_cli_verify(tmp_path, capsys):
     rc = main(["log", "verify", "--paper", str(root / "paper"), "--project", str(root)])
     out = json.loads(capsys.readouterr().out)
     assert rc == 0 and out["ok"] == 1
+
+
+def test_mask_tags_hides_tag_numbers():
+    from po.numtok import find_numbers
+    from po.sourcetags import mask_tags
+    text = "x 87.3 [src#a100: r.csv | row=#2 | col=a | scale=100]\ny 55.5 [manual: n 12.5]"
+    assert [n.token for n in find_numbers(mask_tags(text))] == ["87.3", "55.5"]

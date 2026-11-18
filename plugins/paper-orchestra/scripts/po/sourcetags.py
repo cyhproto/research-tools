@@ -74,6 +74,11 @@ def _mask(line: str, tags) -> str:
     return "".join(chars)
 
 
+def mask_tags(text: str) -> str:
+    """Text with every tag blanked out (line by line), so tag contents hold no numbers."""
+    return "\n".join(_mask(ln, _line_tags(ln)) for ln in text.split("\n"))
+
+
 def parse_tags(markdown: str) -> list[Tag]:
     out: list[Tag] = []
     for ln, line in enumerate(markdown.splitlines(), 1):

@@ -5,8 +5,8 @@ from pathlib import Path
 
 from .cli import common_parent, emit
 from .numtok import find_numbers, is_trivial
-from .sourcetags import (Unreadable, parse_tags, read_log, summarize, untagged_numbers,
-                         verify_text, _line_tags, _mask)
+from .sourcetags import (Unreadable, parse_tags, mask_tags, read_log, summarize,
+                         untagged_numbers, verify_text)
 
 IDEA_HEADINGS = ["Problem Statement", "Core Hypothesis", "Proposed Methodology",
                  "Expected Contribution"]
@@ -92,8 +92,7 @@ def validate_materials(paper_dir: Path, project_root: Path) -> MaterialsReport:
             missing["experiment_log.md"] = []
         else:
             missing["experiment_log.md"] = _missing(text, LOG_HEADINGS)
-            sec = "\n".join(_mask(ln, _line_tags(ln))
-                             for ln in _section(text, "Raw Numeric Data").splitlines())
+            sec = mask_tags(_section(text, "Raw Numeric Data"))
             has_results = any(not is_trivial(n) for n in find_numbers(sec))
             untagged = len(untagged_numbers(text))
             if parse_tags(text):
