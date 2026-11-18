@@ -1,4 +1,5 @@
 """Outline schema checks, rendering, literature search tasks, size estimate and citation injection."""
+import dataclasses
 import hashlib
 import json
 import re
@@ -26,12 +27,24 @@ def _dicts(value) -> list[dict]:
     return [v for v in value if isinstance(v, dict)] if isinstance(value, list) else []
 
 
+def _obj(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _strs(value) -> list[str]:
+    return [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
+
+
+def _is_str_list(value) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
 def _blank(value) -> bool:
     return not isinstance(value, str) or not value.strip()
 
 
 def _validate_figures(plan, project_root, errors: list[str]) -> None:
-    root = Path(project_root) if project_root is not None else Path(".")
+    root = (Path(project_root) if project_root is not None else Path(".")).resolve()
     seen: set[str] = set()
     for i, fig in enumerate(_dicts(plan)):
         fid = fig.get("figure_id")
@@ -45,22 +58,28 @@ def _validate_figures(plan, project_root, errors: list[str]) -> None:
                 errors.append(f"{label}: duplicate figure_id {fid!r}")
             seen.add(fid)
         ptype = fig.get("plot_type")
-        if ptype not in PLOT_TYPES:
+        if not isinstance(ptype, str) or ptype not in PLOT_TYPES:
             errors.append(f"{label}: plot_type must be 'plot' or 'diagram', got {ptype!r}")
-        if fig.get("data_source") not in DATA_SOURCES:
+        if not isinstance(fig.get("data_source"), str) or fig["data_source"] not in DATA_SOURCES:
             errors.append(f"{label}: data_source must be one of {sorted(DATA_SOURCES)}, "
                           f"got {fig.get('data_source')!r}")
         ratio = fig.get("aspect_ratio")
         if ratio is None and ptype == "plot":
             errors.append(f"{label}: aspect_ratio is required for a plot")
-        elif ratio is not None and ratio not in ASPECT_RATIOS:
+        elif ratio is not None and (not isinstance(ratio, str) or ratio not in ASPECT_RATIOS):
             errors.append(f"{label}: aspect_ratio must be one of {ASPECT_RATIOS}, got {ratio!r}")
         files = fig.get("data_files", [])
         if not isinstance(files, list):
             errors.append(f"{label}: data_files must be a list of project-relative paths")
             continue
         for f in files:
-            if not isinstance(f, str) or not (root / f).is_file():
+            if not isinstance(f, str):
+                errors.append(f"{label}: data_files entries must be strings, got {f!r}")
+                continue
+            target = (root / f).resolve()
+            if not target.is_relative_to(root):
+                errors.append(f"{label}: data_files path {f!r} is outside the project root")
+            elif not target.is_file():
                 errors.append(f"{label}: data_files path not found: {f!r}")
 
 
@@ -72,7 +91,10 @@ def _validate_intro_rw(plan, errors: list[str]) -> None:
         if _blank(intro.get(key)):
             errors.append(f"introduction_strategy: {key} must be a non-empty string")
     dirs = intro.get("search_directions")
-    n = len(dirs) if isinstance(dirs, list) else 0
+    if not _is_str_list(dirs):
+        errors.append("introduction_strategy: search_directions must be a list of strings")
+        dirs = None
+    n = len(dirs) if dirs is not None else 0
     if not 3 <= n <= 5:
         errors.append(f"introduction_strategy: search_directions needs 3 to 5 entries, got {n}")
     rw = plan.get("related_work_strategy")
@@ -88,8 +110,8 @@ def _validate_intro_rw(plan, errors: list[str]) -> None:
             if key not in sub:
                 errors.append(f"{label}: missing {key}")
             elif key == "limitation_search_queries":
-                if not isinstance(sub[key], list):
-                    errors.append(f"{label}: limitation_search_queries must be a list")
+                if not _is_str_list(sub[key]):
+                    errors.append(f"{label}: limitation_search_queries must be a list of strings")
             elif _blank(sub[key]):
                 errors.append(f"{label}: {key} must be a non-empty string")
 
@@ -110,14 +132,21 @@ def _validate_sections(plan, style, must_cite_keys, errors: list[str]) -> None:
         for sub in subs:
             where = f"{title} - {sub.get('subsection_title', '')}"
             hints = sub.get("citation_hints", [])
-            for hint in hints if isinstance(hints, list) else []:
+            if not _is_str_list(hints):
+                errors.append(f"{where}: citation_hints must be a list of strings")
+                hints = []
+            if not _is_str_list(sub.get("content_bullets", [])):
+                errors.append(f"{where}: content_bullets must be a list of strings")
+            for hint in hints:
                 if not (isinstance(hint, str) and (HINT_RE.match(hint) or hint.startswith(HINT_PREFIXES))):
                     errors.append(f"citation hint format in {where}: {hint!r}; use "
                                   "'Author (Exact Title)' or \"research paper or technical report "
                                   "introducing '<Name>'\"")
             mc = sub.get("must_cite", [])
-            if isinstance(mc, list):
-                assigned.update(k for k in mc if isinstance(k, str))
+            if _is_str_list(mc):
+                assigned.update(mc)
+            else:
+                errors.append(f"{where}: must_cite must be a list of strings")
     for key in must_cite_keys:
         if key not in assigned:
             errors.append(f"must-cite not assigned: {key}")
@@ -143,14 +172,14 @@ def render_outline_md(outline: dict) -> str:
         out.append(f"- **{f.get('figure_id', '')}** ({f.get('plot_type', '')}, {f.get('aspect_ratio', '-')}, "
                    f"source: {f.get('data_source', '')}): {f.get('title', '')}")
         out.append(f"  - Objective: {f.get('objective', '')}")
-        if f.get("data_files"):
-            out.append(f"  - Data files: {', '.join(f['data_files'])}")
-    plan = outline.get("intro_related_work_plan") or {}
-    intro = plan.get("introduction_strategy") or {}
+        if _strs(f.get("data_files")):
+            out.append(f"  - Data files: {', '.join(_strs(f['data_files']))}")
+    plan = _obj(outline.get("intro_related_work_plan"))
+    intro = _obj(plan.get("introduction_strategy"))
     out += ["", "## Introduction plan", "", f"- Hook: {intro.get('hook_hypothesis', '')}",
             f"- Problem gap: {intro.get('problem_gap_hypothesis', '')}", "- Search directions:"]
-    out += [f"  - {d}" for d in intro.get("search_directions", [])]
-    rw = plan.get("related_work_strategy") or {}
+    out += [f"  - {d}" for d in _strs(intro.get("search_directions"))]
+    rw = _obj(plan.get("related_work_strategy"))
     out += ["", "## Related Work plan", "", rw.get("overview", "")]
     for sub in _dicts(rw.get("subsections")):
         out += ["", f"### {sub.get('subsection_title', '')}", "",
@@ -158,18 +187,20 @@ def render_outline_md(outline: dict) -> str:
                 f"- Mission: {sub.get('sota_investigation_mission', '')}",
                 f"- Limitation hypothesis: {sub.get('limitation_hypothesis', '')}",
                 "- Limitation queries:"]
-        out += [f"  - {q}" for q in sub.get("limitation_search_queries", [])]
+        out += [f"  - {q}" for q in _strs(sub.get("limitation_search_queries"))]
         out.append(f"- Bridge: {sub.get('bridge_to_our_method', '')}")
     out += ["", "## Section plan"]
     for sec in _dicts(outline.get("section_plan")):
         out += ["", f"### {sec.get('section_title', '')}"]
         for sub in _dicts(sec.get("subsections")):
             out += ["", f"#### {sub.get('subsection_title', '')}", ""]
-            out += [f"- {b}" for b in sub.get("content_bullets", [])]
-            for label, key in (("Citation hints", "citation_hints"), ("Must cite", "must_cite"),
+            out += [f"- {b}" for b in _strs(sub.get("content_bullets"))]
+            for label, key in (("Citation hints", "citation_hints"),
+                               ("Citation hints (injected)", "citation_hints_injected"),
+                               ("Must cite", "must_cite"),
                                ("Citation candidates", "citation_candidates")):
-                if sub.get(key):
-                    out.append(f"- {label}: " + "; ".join(str(x) for x in sub[key]))
+                if _strs(sub.get(key)):
+                    out.append(f"- {label}: " + "; ".join(_strs(sub[key])))
     return "\n".join(out) + "\n"
 
 
@@ -181,27 +212,35 @@ def _task(section: str, focus: str, context: str, search_type: str) -> dict:
 
 def collect_search_tasks(outline: dict) -> list[dict]:
     tasks = []
-    plan = outline.get("intro_related_work_plan", {})
-    intro = plan.get("introduction_strategy", {})
-    for direction in intro.get("search_directions", []):
+    plan = _obj(outline.get("intro_related_work_plan"))
+    intro = _obj(plan.get("introduction_strategy"))
+    for direction in _strs(intro.get("search_directions")):
         tasks.append(_task("Introduction", direction,
                            f"Hook: {intro.get('hook_hypothesis', '')}. "
                            f"Gap: {intro.get('problem_gap_hypothesis', '')}", "exploration"))
-    for sub in plan.get("related_work_strategy", {}).get("subsections", []):
-        queries = sub.get("limitation_search_queries", []) or [
+    for sub in _dicts(_obj(plan.get("related_work_strategy")).get("subsections")):
+        queries = _strs(sub.get("limitation_search_queries")) or [
             f"{sub.get('subsection_title', '')} {sub.get('methodology_cluster', '')}"]
         for q in queries:
             tasks.append(_task(f"Related Work: {sub.get('subsection_title', 'General')}", q,
                                f"Mission: {sub.get('sota_investigation_mission', '')}. "
                                f"Hypothesis: {sub.get('limitation_hypothesis', '')}", "exploration"))
-    for section in outline.get("section_plan", []):
+    for section in _dicts(outline.get("section_plan")):
         title = section.get("section_title", "Unknown Section")
-        for sub in section.get("subsections", []):
-            context = " ".join(sub.get("content_bullets", []))
-            for hint in sub.get("citation_hints", []):
+        for sub in _dicts(section.get("subsections")):
+            context = " ".join(_strs(sub.get("content_bullets")))
+            # inject_candidates moves the hints to citation_hints_injected; keep tasks stable
+            hints = _strs(sub.get("citation_hints") or sub.get("citation_hints_injected"))
+            for hint in hints:
                 tasks.append(_task(f"{title} - {sub.get('subsection_title', 'General')}", hint,
                                    f"Must-have citation for section covering: {context}", "targeted"))
-    return tasks
+    seen: set[str] = set()
+    unique = []
+    for t in tasks:
+        if t["id"] not in seen:
+            seen.add(t["id"])
+            unique.append(t)
+    return unique
 
 
 def estimate(outline: dict, profile) -> dict:
@@ -229,19 +268,23 @@ def inject_candidates(outline: dict, entries: list[dict]) -> dict:
         keys = by_section.setdefault(e.get("found_in_section", ""), [])
         if e["key"] not in keys:
             keys.append(e["key"])
-    plan = outline.setdefault("intro_related_work_plan", {})
-    plan.setdefault("introduction_strategy", {})["citation_candidates"] = list(
-        by_section.get("Introduction", []))
-    for sub in plan.get("related_work_strategy", {}).get("subsections", []):
+    if not isinstance(outline.get("intro_related_work_plan"), dict):
+        outline["intro_related_work_plan"] = {}
+    plan = outline["intro_related_work_plan"]
+    if not isinstance(plan.get("introduction_strategy"), dict):
+        plan["introduction_strategy"] = {}
+    plan["introduction_strategy"]["citation_candidates"] = list(by_section.get("Introduction", []))
+    for sub in _dicts(_obj(plan.get("related_work_strategy")).get("subsections")):
         sub["citation_candidates"] = list(
             by_section.get(f"Related Work: {sub.get('subsection_title', 'General')}", []))
-    for section in outline.get("section_plan", []):
+    for section in _dicts(outline.get("section_plan")):
         title = section.get("section_title", "Unknown Section")
-        for sub in section.get("subsections", []):
+        for sub in _dicts(section.get("subsections")):
             cands = list(by_section.get(f"{title} - {sub.get('subsection_title', 'General')}", []))
-            cands += [k for k in sub.get("must_cite", []) if k not in cands]
+            cands += [k for k in _strs(sub.get("must_cite")) if k not in cands]
             sub["citation_candidates"] = cands
-            sub.pop("citation_hints", None)
+            if "citation_hints" in sub:  # kept, so a literature rerun still finds its targeted tasks
+                sub["citation_hints_injected"] = sub.pop("citation_hints")
     return outline
 
 
@@ -253,9 +296,20 @@ def _load(paper: Path):
         print(f"{path} does not exist; run the outline stage first", file=sys.stderr)
         return None, 2
     try:
-        return json.loads(path.read_text(encoding="utf-8")), 0
+        data = json.loads(path.read_text(encoding="utf-8"))
     except ValueError as e:
         return {"__invalid__": str(e)}, 1
+    if not isinstance(data, dict):
+        return {"__invalid__": "the top level must be a JSON object"}, 1
+    return data, 0
+
+
+def _need(paper: Path):
+    """The outline for a command that needs a sound file; None after a message on stderr."""
+    outline, rc = _load(paper)
+    if rc == 1:
+        print(f"{paper / 'outline.json'} is invalid: {outline['__invalid__']}", file=sys.stderr)
+    return None if rc else outline
 
 
 def _cmd_validate(args) -> int:
@@ -268,7 +322,7 @@ def _cmd_validate(args) -> int:
     if rc == 2:
         return 2
     if rc == 1:
-        errors = [f"outline.json is not valid JSON: {outline['__invalid__']}"]
+        errors = [f"outline.json is invalid: {outline['__invalid__']}"]
     else:
         try:
             s = load_settings(paper)
@@ -283,8 +337,8 @@ def _cmd_validate(args) -> int:
 
 
 def _cmd_render(args) -> int:
-    outline, rc = _load(Path(args.paper))
-    if rc:
+    outline = _need(Path(args.paper))
+    if outline is None:
         return 2
     out = Path(args.paper) / "outline.md"
     out.write_text(render_outline_md(outline), encoding="utf-8")
@@ -293,8 +347,8 @@ def _cmd_render(args) -> int:
 
 
 def _cmd_tasks(args) -> int:
-    outline, rc = _load(Path(args.paper))
-    if rc:
+    outline = _need(Path(args.paper))
+    if outline is None:
         return 2
     tasks = collect_search_tasks(outline)
     out = Path(args.paper) / "references" / "tasks.json"
@@ -306,11 +360,12 @@ def _cmd_tasks(args) -> int:
 
 def _cmd_estimate(args) -> int:
     from .settings import SettingsError, load_settings
-    outline, rc = _load(Path(args.paper))
-    if rc:
+    outline = _need(Path(args.paper))
+    if outline is None:
         return 2
     try:
-        profile = load_settings(Path(args.paper)).profile_obj
+        s = load_settings(Path(args.paper))
+        profile = dataclasses.replace(s.profile_obj, revision_rounds=s.max_review_rounds)
     except SettingsError as e:
         print(e, file=sys.stderr)
         return 2
@@ -320,8 +375,8 @@ def _cmd_estimate(args) -> int:
 
 def _cmd_inject(args) -> int:
     paper = Path(args.paper)
-    outline, rc = _load(paper)
-    if rc:
+    outline = _need(paper)
+    if outline is None:
         return 2
     lib = paper / "references" / "library.json"
     if not lib.is_file():

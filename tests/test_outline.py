@@ -4,7 +4,7 @@ import json
 import pytest
 
 from po.cli import main
-from po.outline import validate_outline, collect_search_tasks, estimate, inject_candidates
+from po.outline import render_outline_md, validate_outline, collect_search_tasks, estimate, inject_candidates
 from po.settings import PROFILES, PLUGIN_DIR
 from po.style import load_style
 
@@ -101,3 +101,77 @@ def test_cli_validate_fails(tmp_path):
     o.pop("section_plan")
     (paper / "outline.json").write_text(json.dumps(o))
     assert main(["outline", "validate", "--paper", str(paper)]) == 1
+
+
+def _paper(tmp_path, outline, text=None):
+    paper = tmp_path / "paper"
+    paper.mkdir(exist_ok=True)
+    (paper / "outline.json").write_text(text if text is not None else json.dumps(outline))
+    return paper
+
+
+def test_estimate_cli_uses_max_review_rounds(tmp_path, capsys):
+    paper = _paper(tmp_path, OUT)
+    (paper / "settings.md").write_text("---\nprofile: full\nmax_review_rounds: 1\n---\n")
+    capsys.readouterr()
+    assert main(["outline", "estimate", "--paper", str(paper)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["review_passes_max"] == 2 and out["revisions_max"] == 1
+
+
+@pytest.mark.parametrize("mutate,token", [
+    (lambda o: o["plotting_plan"][0].update(data_source=["idea.md"]), "data_source"),
+    (lambda o: o["plotting_plan"][0].update(data_source={"a": 1}), "data_source"),
+    (lambda o: o["plotting_plan"][0].update(plot_type=["plot"]), "plot_type"),
+    (lambda o: o["plotting_plan"][0].update(aspect_ratio=["1:1"]), "aspect_ratio"),
+    (lambda o: o["section_plan"][2]["subsections"][0].update(citation_hints="Ho et al. (DDPM)"), "citation_hints"),
+    (lambda o: o["section_plan"][1]["subsections"][0].update(must_cite="Kim2024Own"), "must_cite"),
+    (lambda o: o["intro_related_work_plan"]["introduction_strategy"].update(search_directions="abc"), "search_directions"),
+    (lambda o: o["intro_related_work_plan"]["introduction_strategy"].update(search_directions=[1, 2, 3]), "search_directions"),
+    (lambda o: o["intro_related_work_plan"]["related_work_strategy"]["subsections"][0].update(limitation_search_queries="q"), "limitation_search_queries"),
+    (lambda o: o["section_plan"][2]["subsections"][0].update(content_bullets="x"), "content_bullets"),
+    (lambda o: o["section_plan"][2]["subsections"][0].update(content_bullets=[1]), "content_bullets"),
+])
+def test_wrong_types_error_not_crash(mutate, token):
+    o = copy.deepcopy(OUT)
+    mutate(o)
+    assert any(token in e for e in validate_outline(o, ML, ["Kim2024Own"]))
+    for fn in (collect_search_tasks, render_outline_md):
+        fn(o)  # must not raise
+
+
+@pytest.mark.parametrize("text", ["[]", '{"intro_related_work_plan": null}', "not json"])
+def test_cli_guards_bad_outline(tmp_path, text):
+    paper = _paper(tmp_path, None, text)
+    (paper / "references").mkdir()
+    (paper / "references/library.json").write_text("[]")
+    for cmd in ("render", "tasks", "estimate", "inject"):
+        rc = main(["outline", cmd, "--paper", str(paper)])
+        assert rc in (0, 2)
+    assert main(["outline", "render", "--paper", str(paper)]) == (0 if text.startswith("{") else 2)
+
+
+def test_tasks_deduped():
+    o = copy.deepcopy(OUT)
+    d = o["intro_related_work_plan"]["introduction_strategy"]["search_directions"]
+    d.append(d[0])
+    t = collect_search_tasks(o)
+    assert len(t) == 10 and len({x["id"] for x in t}) == 10
+
+
+def test_data_files_confined(tmp_path):
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (tmp_path / "secret.csv").write_text("x")
+    for bad in ("../secret.csv", str(tmp_path / "secret.csv")):
+        o = copy.deepcopy(OUT)
+        o["plotting_plan"][1]["data_files"] = [bad]
+        errs = validate_outline(o, ML, ["Kim2024Own"], proj)
+        assert any("data_files" in e and "outside" in e for e in errs), bad
+
+
+def test_tasks_stable_after_inject():
+    before = collect_search_tasks(OUT)
+    o = inject_candidates(copy.deepcopy(OUT), [{"key": "A2020X", "found_in_section": "Introduction"}])
+    assert collect_search_tasks(o) == before
+    assert any("citation_hints_injected" in s for sec in o["section_plan"] for s in sec["subsections"])
