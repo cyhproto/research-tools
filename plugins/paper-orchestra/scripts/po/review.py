@@ -5,7 +5,7 @@ Bookkeeping files written under <paper>/reviews/ (all JSON, read by `render`):
   protected_v<K>.json  {id: paragraph text} map of the marked draft (`protect`)
   rounds.json          [{version, overall_before, overall_after, outcome}], one
                        entry per version, written by `decide --record K`
-  restorations.json    [{version, id, action}], appended by `restore`
+  restorations.json    {"v<K>": [{id, action}]}, replaced per version by `restore`
   worklog_v<K>.json    the reviser's worklog for the round on v<K>, with keys
                        addressed_weaknesses, integrated_answers, actions_taken,
                        experiments_requested, suggestions_for_protected
@@ -29,7 +29,7 @@ WORKLOG_KEYS = ["addressed_weaknesses", "integrated_answers", "actions_taken",
                 "experiments_requested", "suggestions_for_protected"]
 FUZZY = 0.6
 
-JSON_BLOCK_RE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.S)
+JSON_BLOCK_RE = re.compile(r"```json[ \t]*\r?\n(.*?)```", re.S | re.I)
 KEEP_RE = re.compile(r"<!-- po:keep (\d+) -->\s*(.*?)\s*<!-- /po:keep \1 -->", re.S)
 MARKER_RE = re.compile(r"[ \t]*<!-- /?po:keep \d+ -->[ \t]*\n?")
 HEADINGS = ["## Review rounds", "## What changed", "## Experiments reviewers asked for",
@@ -51,22 +51,35 @@ def parse_review(text: str) -> dict:
     return data
 
 
+def _as_int(v) -> int | None:
+    """int(v) as the original does; None when that fails (bools and None included)."""
+    if isinstance(v, bool) or v is None:
+        return None
+    try:
+        return int(v)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
 def aggregate(reviews: list[dict], meta: dict | None) -> dict:
     text_src = meta if meta is not None else (reviews[0] if reviews else {})
     out = {k: v for k, v in text_src.items() if k not in SCORE_FIELDS}
     for field, (lo, hi) in SCORE_FIELDS.items():
-        vals = [r[field] for r in reviews
-                if isinstance(r.get(field), int) and not isinstance(r.get(field), bool) and lo <= r[field] <= hi]
+        vals = [v for v in (_as_int(r.get(field)) for r in reviews) if v is not None and lo <= v <= hi]
         if vals:
             out[field] = round(statistics.mean(vals))
     return out
 
 
 def decide(old: dict, new: dict) -> dict:
-    deltas = {k: new.get(k, 0) - old.get(k, 0) for k in COMPARE_AXES}
+    def num(d, k):
+        v = _as_int(d.get(k))
+        return 0 if v is None else v
+
+    deltas = {k: num(new, k) - num(old, k) for k in COMPARE_AXES}
     gain = sum(d for d in deltas.values() if d > 0)
     drop = sum(-d for d in deltas.values() if d < 0)
-    o, n = old.get("Overall", 0), new.get("Overall", 0)
+    o, n = num(old, "Overall"), num(new, "Overall")
     if n > o:
         outcome = "ACCEPTED_SCORE_INCREASE"
     elif n < o:
@@ -116,12 +129,11 @@ def strip_markers(md: str) -> str:
 def protect(md: str, protected: list[str]) -> tuple[str, dict[str, str]]:
     md = md.replace("\r\n", "\n")
     want = {_collapse(p) for p in protected}
-    out, last, n, seen = [], 0, 0, set()
+    out, last, n = [], 0, 0
     originals: dict[str, str] = {}
     for s, e, p in _spans(md):
         c = _collapse(p)
-        if c in want and c not in seen:
-            seen.add(c)
+        if c in want:
             n += 1
             originals[str(n)] = p
             out += [md[last:s], _block(n, p)]
@@ -152,8 +164,11 @@ def restore(revised_md: str, originals: dict[str, str], pre_revision_md: str) ->
     text = revised_md.replace("\r\n", "\n")
     pre = strip_markers(pre_revision_md.replace("\r\n", "\n"))
     actions: list[dict] = []
+    seen_text: dict[str, int] = {}
     for id_ in sorted(originals, key=int):
         orig = originals[id_]
+        occ = seen_text.get(_collapse(orig), 0)
+        seen_text[_collapse(orig)] = occ + 1
         action = None
         # 1. markers present
         m = next((m for m in KEEP_RE.finditer(text) if m.group(1) == id_), None)
@@ -170,55 +185,65 @@ def restore(revised_md: str, originals: dict[str, str], pre_revision_md: str) ->
                 text = text[:s] + _block(id_, orig) + text[e:]
             else:
                 # 3. reinsert
-                text, action = _reinsert(text, id_, orig, pre)
+                text, action = _reinsert(text, id_, orig, pre, occ)
         actions.append({"id": id_, "action": action})
     text = strip_markers(text)
     return (text.replace("\n", "\r\n") if crlf else text), actions
 
 
-def _reinsert(text: str, id_: str, orig: str, pre: str) -> tuple[str, str]:
-    o = _collapse(orig)
-    pre_spans = _spans(pre)
-    idx = next((k for k, (_, _, p) in enumerate(pre_spans) if _collapse(p) == o), None)
+def _locate(pre: str, orig: str, occ: int):
+    """(section name, paragraphs of that section, index) of the occ-th copy of orig in pre."""
+    o, seen = _collapse(orig), 0
+    _, secs = split_sections(pre)
+    for s in secs:
+        paras = paragraphs(s.text)
+        for k, p in enumerate(paras):
+            if _collapse(p) == o:
+                if seen == occ:
+                    return s.name, paras, k
+                seen += 1
+    return None
+
+
+def _reinsert(text: str, id_: str, orig: str, pre: str, occ: int = 0) -> tuple[str, str]:
+    loc = _locate(pre, orig, occ)
+    if loc is None:
+        return text, "missing"
+    name, paras, idx = loc
     block = _block(id_, orig)
-    if idx is not None and idx > 0:
-        prev = pre_spans[idx - 1][2]
-        cands = [(s, e, _plain(p)) for s, e, p in _spans(text)]
-        j = next((k for k, c in enumerate(cands) if _collapse(c[2]) == _collapse(prev)), None)
+    preamble, secs = split_sections(text)
+    sec = next((s for s in secs if s.name == name), None)
+    if sec is None:
+        return text, "missing"
+    if idx > 0:
+        prev = _collapse(paras[idx - 1])
+        cands = [(s, e, _plain(p)) for s, e, p in _spans(sec.text)]
+        j = next((k for k, c in enumerate(cands) if _collapse(c[2]) == prev), None)
         if j is None:
-            j, r = _best(prev, cands, set())
+            j, r = _best(paras[idx - 1], cands, set())
             if r < FUZZY:
                 j = None
         if j is not None:
             e = cands[j][1]
-            return text[:e] + "\n\n" + block + text[e:], "reinserted"
-    # section end, found by name
-    name = _section_of(pre, orig)
-    if name is None:
-        return text, "missing"
-    preamble, secs = split_sections(text)
-    for s in secs:
-        if s.name == name:
-            s.text = s.text.rstrip("\n") + "\n\n" + block + "\n" + ("\n" if s is not secs[-1] else "")
-            return assemble(preamble, secs), "reinserted"
-    return text, "missing"
-
-
-def _section_of(md: str, orig: str) -> str | None:
-    _, secs = split_sections(md)
-    o = _collapse(orig)
-    for s in secs:
-        if any(_collapse(p) == o for p in paragraphs(s.text)):
-            return s.name
-    return None
+            sec.text = sec.text[:e] + "\n\n" + block + sec.text[e:]
+        else:
+            sec.text = sec.text.rstrip("\n") + "\n\n" + block + "\n" + ("\n" if sec is not secs[-1] else "")
+    else:
+        body = sec.text.lstrip("\n")
+        sec.text = "\n\n" + block + ("\n\n" + body if body else "\n")
+    return assemble(preamble, secs), "reinserted"
 
 
 def changed_protected(revised_md: str, originals: dict[str, str]) -> list[dict]:
+    """Changed protected paragraphs; `after` is None when marker and text were both deleted."""
+    found = {m.group(1): m.group(2) for m in KEEP_RE.finditer(revised_md.replace("\r\n", "\n"))}
     out = []
-    for m in KEEP_RE.finditer(revised_md.replace("\r\n", "\n")):
-        orig = originals.get(m.group(1))
-        if orig is not None and _collapse(m.group(2)) != _collapse(orig):
-            out.append({"before": orig, "after": m.group(2)})
+    for id_ in sorted(originals, key=int):
+        orig = originals[id_]
+        if id_ not in found:
+            out.append({"before": orig, "after": None})
+        elif _collapse(found[id_]) != _collapse(orig):
+            out.append({"before": orig, "after": found[id_]})
     return out
 
 
@@ -332,6 +357,8 @@ def _cmd_decide(args) -> int:
     try:
         old = json.loads(_read(_resolve(paper, args.old)))
         new = json.loads(_read(_resolve(paper, args.new)))
+        if not isinstance(old, dict) or not isinstance(new, dict):
+            raise ValueError("a review aggregate must be a JSON object")
     except (OSError, ValueError) as e:
         print(f"cannot read review aggregate: {e}", file=sys.stderr)
         return 2
@@ -357,7 +384,7 @@ def _cmd_protect(args) -> int:
     pm = paper / "paper.md"
     if not pm.is_file():
         print(f"{pm} not found", file=sys.stderr)
-        return 1
+        return 2
     md = _read(pm)
     prot = protected_set(md, _tool_md(paper), get_protected(paper))
     marked, originals = protect(md, prot)
@@ -381,7 +408,10 @@ def _cmd_restore(args) -> int:
     _write(cand, text)
     v = _version_of(mp)
     log = paper / "reviews" / "restorations.json"
-    _dump(log, _load(log, []) + [{"version": v, **a} for a in acts])
+    data = _load(log, {})
+    data = data if isinstance(data, dict) else {}
+    data[f"v{v}" if v is not None else "unversioned"] = acts
+    _dump(log, data)
     emit({"actions": acts})
     return 0
 
@@ -405,6 +435,12 @@ def _cmd_render(args) -> int:
     paper = Path(args.paper)
     rev = paper / "reviews"
     rounds = _load(rev / "rounds.json", [])
+    resto = _load(rev / "restorations.json", {})
+    if isinstance(resto, dict):
+        resto = [{"version": int(k[1:]) if k[1:].isdigit() else None, **a}
+                 for k, v in sorted(resto.items(), key=lambda kv: (len(kv[0]), kv[0])) for a in v]
+    else:
+        resto = []
     todo, sugg = [], []
     for r in rounds:
         wl = _load(rev / f"worklog_v{r['version']}.json", {})
@@ -414,7 +450,7 @@ def _cmd_render(args) -> int:
             sugg += wl.get("suggestions_for_protected", [])
     target = paper / "review.md"
     check = _existing_check(_read(target)) if target.is_file() else None
-    _write(target, render_review_md(rounds, todo, sugg, _load(rev / "restorations.json", []), check))
+    _write(target, render_review_md(rounds, todo, sugg, resto, check))
     emit({"review": str(target), "rounds": len(rounds)})
     return 0
 

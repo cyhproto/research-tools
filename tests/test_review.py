@@ -110,3 +110,69 @@ def test_cli_flow(tmp_path, capsys):
     assert main(["review", "render", *base]) == 0
     md = (paper / "review.md").read_text()
     assert "Tightened intro" in md and "Ablate k" in md and "Cite X" in md and "All good." in md
+
+
+def test_reinsert_stays_in_own_section():
+    pre = "## Intro\n\nA para.\n\n## Method\n\nMy own words.\n\nTool para.\n"
+    marked, orig = protect(pre, ["My own words."])
+    out, acts = restore("## Intro\n\nA para.\n\n## Method\n\nTool para.\n", orig, marked)
+    assert acts[0]["action"] == "reinserted"
+    assert out.index("## Method") < out.index("My own words.") < out.index("Tool para.")
+    assert out.index("A para.") < out.index("## Method")
+    assert "\n\n\n" not in out
+
+
+def test_aggregate_coerces_like_original():
+    rs = [{**OLD, "Clarity": "3"}, {**OLD, "Clarity": 3.0}, {**OLD, "Clarity": True}, {**OLD, "Clarity": "9"}]
+    assert aggregate(rs, None)["Clarity"] == 3
+
+
+def test_decide_never_raises():
+    d = decide({"Overall": "x", "Clarity": None}, {"Clarity": "bad", "Quality": 2})
+    assert d["outcome"] == "ACCEPTED_NEUTRAL_IMPROVEMENT" and d["deltas"]["Quality"] == 2
+
+
+def test_duplicate_protected_paragraphs():
+    md = "## A\n\nSame.\n\nTool.\n\n## B\n\nSame.\n"
+    marked, orig = protect(md, ["Same."])
+    assert marked.count("<!-- po:keep") == 2 and len(orig) == 2 and set(orig.values()) == {"Same."}
+    out, acts = restore("## A\n\nTool.\n\n## B\n\nOther.\n", orig, marked)
+    assert len(acts) == 2
+    assert out.count("Same.") == 2 and "po:keep" not in out
+    assert out.index("Same.") < out.index("Tool.") and out.index("## B") < out.rindex("Same.")
+
+
+def test_changed_protected_reports_deleted():
+    marked, orig = protect(PRE, ["My own words here."])
+    gone = KEEP_RE.sub("", marked)
+    assert changed_protected(gone, orig) == [{"before": "My own words here.", "after": None}]
+
+
+def test_parse_review_uppercase_fence():
+    assert parse_review('REVIEW JSON:\n```JSON\n{"a": 1}\n```')["a"] == 1
+
+
+def test_cli_edge_cases(tmp_path, capsys):
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    base = ["--paper", str(paper)]
+    assert main(["review", "protect", *base, "--out", "drafts/marked_v1.md"]) == 2
+    (paper / "o.json").write_text('{"Overall": "x"}')
+    (paper / "n.json").write_text('[1]')
+    assert main(["review", "decide", *base, "--old", "o.json", "--new", "n.json"]) == 2
+    (paper / "n.json").write_text('{"Clarity": "z"}')
+    assert main(["review", "decide", *base, "--old", "o.json", "--new", "n.json"]) == 0
+    assert "Traceback" not in capsys.readouterr().err
+    # restorations keyed by version: rerun overwrites
+    (paper / "paper.md").write_text(PRE)
+    main(["review", "protect", *base, "--out", "drafts/marked_v1.md"])
+    (paper / "reviews/protected_v1.json").write_text('{"1": "My own words here."}')
+    (paper / "c.md").write_text("## Method\n\nTool para one.\n")
+    for _ in range(2):
+        (paper / "c.md").write_text("## Method\n\nTool para one.\n")
+        assert main(["review", "restore", *base, "--candidate", "c.md", "--map", "reviews/protected_v1.json",
+                     "--pre", "paper.md"]) == 0
+    assert list(json.loads((paper / "reviews/restorations.json").read_text())) == ["v1"]
+    assert len(json.loads((paper / "reviews/restorations.json").read_text())["v1"]) == 1
+    assert main(["review", "render", *base]) == 0
+    assert "reinserted" in (paper / "review.md").read_text()
