@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .bibimport import ImportedRef, load_imports, normalize_doi
 from .cli import common_parent, emit
-from .scholar import Lookup, PaperRecord, best_match, normalize_title, truncate_abstract
+from .scholar import Lookup, PaperRecord, best_match, normalize_title, truncate_abstract, within_cutoff
 from .state import task_done
 
 STOPWORDS = {"the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "is", "are", "with", "by", "study"}
@@ -244,19 +244,42 @@ def _remap(resolved: dict, mapping: dict) -> None:
         resolved[k] = mapping.get(v, v)
 
 
+def _recheck_cutoff(previous: VerifyResult, candidates: list[Candidate], cutoff: str,
+                    resolved: dict[str, str]) -> tuple[list[LibraryEntry], list[dict], set[str]]:
+    """Kept entries, after-cutoff drops and their titles: an earlier cutoff drops kept entries
+    published after it (must-cite entries are the user's and stay). `resolved` loses their keys."""
+    task_of: dict[str, str] = {}
+    for c in candidates:
+        task_of.setdefault(normalize_title(c.title), c.task_id)
+    entries, dropped, titles = [], [], set()
+    for e in previous.entries:
+        if e.must_cite or within_cutoff(e.publication_date, e.year, cutoff):
+            entries.append(e)
+            continue
+        cands = [t for t, k in resolved.items() if k == e.key]
+        dropped.append({"title": e.title, "task_id": next((task_of[t] for t in cands if t in task_of), ""),
+                        "reason": "after-cutoff"})
+        titles |= {normalize_title(e.title), *cands}
+        for t in cands:
+            del resolved[t]
+    return entries, dropped, titles
+
+
 def verify_candidates(candidates: list[Candidate], imports: list[ImportedRef], lookup: Lookup,
                       cutoff: str, previous: VerifyResult | None = None) -> VerifyResult:
-    entries = list(previous.entries) if previous else []
     resolved: dict[str, str] = dict(previous.resolved) if previous else {}
-    seen_titles = {normalize_title(e.title) for e in entries}
+    entries: list[LibraryEntry] = []
     dropped: list[dict] = []
-    if previous:
+    seen_titles: set[str] = set()
+    if previous:  # "keep the library": the old entries and drops, re-checked against the cutoff
+        entries, dropped, seen_titles = _recheck_cutoff(previous, candidates, cutoff, resolved)
         current = {normalize_title(c.title) for c in candidates}
         for d in previous.dropped:
             nt = normalize_title(d["title"])
             if not (d["reason"] == "lookup-failed" and nt in current):  # those are retried below
                 dropped.append(d)
                 seen_titles.add(nt)
+    seen_titles |= {normalize_title(e.title) for e in entries}
     seen_candidates: set[str] = set()
     for cand in candidates:
         nt = normalize_title(cand.title)

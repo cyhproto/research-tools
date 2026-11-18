@@ -73,6 +73,8 @@ The clean-up moves the stage's old outputs into `$PAPER/old/<stage>-<stamp>/`; n
 - **keep the library** (stable keys, new papers added): run `$PO state clear-tasks lit:`; move `drafts/lit_sections.md`, `references/candidates/` and `references/batches/`. The scouts search again;
 - **start fresh** (advised after re-planning the outline): as keep the library, and also move `references/library.json`, `references.bib` and `search_log.json`; keep `cache.json`.
 
+With the first two, `refs verify` re-checks the kept entries against the current cutoff: if the cutoff moved earlier, it drops later papers as `after-cutoff`.
+
 **Run options.** `write --only` and `--hand-edits` are recorded as ids: `opt:write:only=<Section>` (one per name) and `opt:review:hand-edits=<mode>`.
 - On a fresh start of write or review: run `$PO state clear-tasks opt:<stage>:`, then `$PO state task-done` for each option given.
 - On a resume: options given now replace the recorded ones (clear them, then record the new ones). Otherwise use the recorded ones, listed in `options` from `$PO state show`.

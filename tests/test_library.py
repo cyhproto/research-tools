@@ -237,3 +237,21 @@ def test_resolved_follows_key_rename_on_merge():
     must = add_must_cite([ImportedRef("Lee2020DeepNets", "Mine", ["Me"], 2020, None, None, None, "m.bib")], FakeLookup())
     merged = merge_must_cite(gen, must)
     assert list(merged.resolved.values()) == ["Lee2020DeepNetsa"]
+
+
+# ---- m8 / P37: keep the library re-checks kept entries against the current cutoff -----------
+def test_kept_entries_are_rechecked_against_an_earlier_cutoff():
+    oa = {"Early Paper": [R("Early Paper", 2019, "2019-05-01")],
+          "Late Paper (2023)": [R("Late Paper", 2023, "2023-03-01")],
+          "Cutoff Month Paper": [R("Cutoff Month Paper", 2022, "2022-12-20")]}
+    cands = [C("Early Paper"), C("Late Paper (2023)", "t2"), C("Cutoff Month Paper")]
+    first = verify_candidates(cands, [], FakeLookup(oa), "2024-11")
+    assert len(first.entries) == 3
+    must = add_must_cite([ImportedRef("Mine", "My Late Work", ["Me"], 2024, None, None, None, "m.bib")], FakeLookup())
+    first = merge_must_cite(first, must)
+    lookup = FakeLookup(oa)
+    second = verify_candidates(cands, [], lookup, "2022-12", previous=first)
+    assert sorted(e.title for e in second.entries) == ["Cutoff Month Paper", "Early Paper", "My Late Work"]
+    assert second.dropped == [{"title": "Late Paper", "task_id": "t2", "reason": "after-cutoff"}]
+    assert sorted(second.resolved.values()) == sorted(e.key for e in second.entries if not e.must_cite)
+    assert second.counts["dropped_by_reason"] == {"after-cutoff": 1}
