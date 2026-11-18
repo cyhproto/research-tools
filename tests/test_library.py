@@ -150,3 +150,90 @@ def test_cli_counts_and_import_check(tmp_path, capsys):
     assert main(["refs", "counts", "--paper", str(tmp_path)]) == 0
     assert json.loads(capsys.readouterr().out)["with_abstract"] == 1
     assert main(["refs", "import-check", "--paper", str(tmp_path)]) == 0
+
+
+# ---- fix round 1 ------------------------------------------------------------
+
+class SrcLookup(FakeLookup):
+    def __init__(self, oa=None, s2=None, fail=False):
+        super().__init__(oa, fail); self.s2 = s2 or {}
+    def s2_title(self, t): return LookupOutcome(self.s2.get(t, []), False)
+
+
+def S2R(title, abstract="s2 abs"):
+    r = R(title, abstract=abstract); r.source = "semanticscholar"; return r
+
+
+def test_s2_source_label_mapped():
+    [e] = verify_candidates([C("Only S2")], [], SrcLookup(s2={"Only S2": [S2R("Only S2")]}), "2024-11").entries
+    assert e.verified_by == "s2" and e.abstract_source == "s2"
+
+
+def test_s2_abstract_fallback_label():
+    lk = SrcLookup(oa={"Bare Paper": [R("Bare Paper", abstract=None)]}, s2={"Bare Paper": [S2R("Bare Paper")]})
+    [e] = verify_candidates([C("Bare Paper")], [], lk, "2024-11").entries
+    assert e.verified_by == "openalex" and (e.abstract, e.abstract_source) == ("s2 abs", "s2")
+
+
+def test_bibtex_escaping():
+    e = LibraryEntry("K", "R&D: 50% of {BERT} costs $5 #1 a_b", ["A_B & C"], "Conf~X^Y\\Z", 2020, None, None,
+                     "openalex", False, "s", "r", doi="10.1/a_b{x}")
+    bib = write_bibtex([e])
+    assert "title={{R\\&D: 50\\% of \\{BERT\\} costs \\$5 \\#1 a\\_b}}" in bib
+    assert "author={A\\_B \\& C}" in bib
+    assert "booktitle={Conf\\textasciitilde{}X\\textasciicircum{}Y\\textbackslash{}Z}" in bib
+    assert "doi={10.1/a_bx}" in bib
+
+
+def test_duplicate_must_cite_keys_first_wins_with_warning():
+    a = add_must_cite([ImportedRef("Dup", "First Work", ["A B"], 2020, None, None, None, "m.bib"),
+                       ImportedRef("Dup", "Second Work", ["C D"], 2021, None, None, None, "m.bib")], FakeLookup())
+    out, warns = dedupe_must_cite_keys(a)
+    assert [e.title for e in out] == ["First Work"] and len(warns) == 1 and "Dup" in warns[0]
+
+
+def test_cli_verify_reports_duplicate_must_cite_warning(tmp_path, monkeypatch, capsys):
+    import types, po.library as lib, po.settings as st
+    from po.cli import main
+    _write_cand(tmp_path, "t1", ["Good Paper"])
+    d = tmp_path / "materials/references"; d.mkdir(parents=True)
+    (d / "must_cite.bib").write_text("@article{Dup, title={First Work}, author={A B}, year={2020}}\n"
+                                     "@article{Dup, title={Second Work}, author={C D}, year={2021}}\n")
+    monkeypatch.setattr(lib, "Lookup", lambda **kw: FakeLookup({"Good Paper": [R("Good Paper")]}))
+    monkeypatch.setattr(st, "load_settings", lambda p: types.SimpleNamespace(cutoff="2024-11"))
+    capsys.readouterr()
+    assert main(["refs", "verify", "--paper", str(tmp_path)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert any("Dup" in w for w in out["warnings"]) and out["must_cite"] == 1
+
+
+def test_done_marking_uses_snapshot(tmp_path):
+    from po.state import is_task_done
+    from po.library import _scan_candidates
+    _write_cand(tmp_path, "t1", ["Good Paper"])
+    files, _ = _scan_candidates(tmp_path)
+    _write_cand(tmp_path, "t2", ["Other"])  # appears after the snapshot
+    save_library(tmp_path, VerifyResult([], [], counts([], [])), files)
+    assert is_task_done(tmp_path, "lit:t1") and not is_task_done(tmp_path, "lit:t2")
+
+
+def test_resolved_candidates_not_retried_or_dropped(tmp_path):
+    cand = C("Attn is all you need (2017)")
+    lk = FakeLookup({cand.title: [R("Attention Is All You Need")]})
+    first = verify_candidates([cand], [], lk, "2024-11")
+    assert [e.title for e in first.entries] == ["Attention Is All You Need"]
+    _write_cand(tmp_path, "t1", [cand.title])
+    save_library(tmp_path, first)
+    log = json.loads((tmp_path / "references/search_log.json").read_text())
+    assert list(log["resolved"].values()) == [first.entries[0].key]
+    prev = VerifyResult(load_library(tmp_path), log["dropped"], {}, log["resolved"])
+    second = verify_candidates([cand], [], FakeLookup(fail=True), "2024-11", previous=prev)
+    assert second.dropped == [] and [e.key for e in second.entries] == [first.entries[0].key]
+
+
+def test_resolved_follows_key_rename_on_merge():
+    cand = C("Deep Nets A")
+    gen = verify_candidates([cand], [], FakeLookup({cand.title: [R(cand.title)]}), "2024-11")
+    must = add_must_cite([ImportedRef("Lee2020DeepNets", "Mine", ["Me"], 2020, None, None, None, "m.bib")], FakeLookup())
+    merged = merge_must_cite(gen, must)
+    assert list(merged.resolved.values()) == ["Lee2020DeepNetsa"]

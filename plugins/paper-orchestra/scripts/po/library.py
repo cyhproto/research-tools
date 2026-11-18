@@ -16,6 +16,13 @@ from .state import task_done
 STOPWORDS = {"the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "is", "are", "with", "by", "study"}
 
 
+_SOURCE_LABELS = {"openalex": "openalex", "semanticscholar": "s2", "s2": "s2", "crossref": "crossref"}
+
+
+def _label(source: str | None) -> str:
+    return _SOURCE_LABELS.get(source or "", source or "")
+
+
 @dataclass
 class LibraryEntry:
     key: str
@@ -57,6 +64,7 @@ class VerifyResult:
     entries: list[LibraryEntry]
     dropped: list[dict]
     counts: dict
+    resolved: dict = field(default_factory=dict)  # normalized candidate title -> entry key
 
 
 # -- keys ---------------------------------------------------------------------
@@ -211,7 +219,7 @@ def _verify_one(cand: Candidate, imports: list[ImportedRef], lookup, cutoff: str
         if imp is not None and imp.abstract:
             abstract, source = imp.abstract, "import"
         elif rec.abstract:
-            abstract, source = rec.abstract, rec.source
+            abstract, source = rec.abstract, _label(rec.source)
         else:
             abstract, source = None, None
             for service in ("openalex", "s2"):
@@ -221,7 +229,7 @@ def _verify_one(cand: Candidate, imports: list[ImportedRef], lookup, cutoff: str
                 if alt is not None and alt.abstract:
                     abstract, source = alt.abstract, service
                     break
-        return _entry_from_record(rec, cand, imp, abstract, source, rec.source), None
+        return _entry_from_record(rec, cand, imp, abstract, source, _label(rec.source)), None
     if outside:
         return None, "after-cutoff"
     if imp is not None:
@@ -231,9 +239,15 @@ def _verify_one(cand: Candidate, imports: list[ImportedRef], lookup, cutoff: str
     return None, "lookup-failed" if failed else "not-found"
 
 
+def _remap(resolved: dict, mapping: dict) -> None:
+    for k, v in list(resolved.items()):
+        resolved[k] = mapping.get(v, v)
+
+
 def verify_candidates(candidates: list[Candidate], imports: list[ImportedRef], lookup: Lookup,
                       cutoff: str, previous: VerifyResult | None = None) -> VerifyResult:
     entries = list(previous.entries) if previous else []
+    resolved: dict[str, str] = dict(previous.resolved) if previous else {}
     seen_titles = {normalize_title(e.title) for e in entries}
     dropped: list[dict] = []
     if previous:
@@ -249,18 +263,23 @@ def verify_candidates(candidates: list[Candidate], imports: list[ImportedRef], l
         if nt in seen_candidates:
             continue
         seen_candidates.add(nt)
-        if nt in seen_titles:
+        if nt in seen_titles or nt in resolved:
             continue
         entry, reason = _verify_one(cand, imports, lookup, cutoff)
         if entry is not None:
             mt = normalize_title(entry.title)
-            if mt in {normalize_title(e.title) for e in entries}:
+            existing = next((e for e in entries if normalize_title(e.title) == mt), None)
+            if existing is not None:
+                resolved[nt] = existing.key
                 continue
             entries.append(entry)
+            resolved[nt] = entry.key
         else:
             dropped.append({"title": cand.title, "task_id": cand.task_id, "reason": reason})
+    old = {id(e): e.key for e in entries}
     assign_unique_keys(entries)
-    return VerifyResult(entries, dropped, counts(entries, dropped))
+    _remap(resolved, {old[id(e)]: e.key for e in entries if id(e) in old})
+    return VerifyResult(entries, dropped, counts(entries, dropped), resolved)
 
 
 def add_must_cite(refs: list[ImportedRef], lookup: Lookup) -> list[LibraryEntry]:
@@ -279,7 +298,7 @@ def add_must_cite(refs: list[ImportedRef], lookup: Lookup) -> list[LibraryEntry]
         if ref.abstract:
             abstract, source = truncate_abstract(ref.abstract), "import"
         elif rec is not None and rec.abstract:
-            abstract, source = truncate_abstract(rec.abstract), rec.source
+            abstract, source = truncate_abstract(rec.abstract), _label(rec.source)
         else:
             abstract = source = None
         authors = (rec.authors if rec is not None and rec.authors else ref.authors)
@@ -288,7 +307,7 @@ def add_must_cite(refs: list[ImportedRef], lookup: Lookup) -> list[LibraryEntry]
             venue=(rec.venue if rec is not None and rec.venue else ref.venue),
             year=rec.year if rec is not None and rec.year is not None else ref.year,
             abstract=abstract, abstract_source=source,
-            verified_by=rec.source if rec is not None else "user-vouched",
+            verified_by=_label(rec.source) if rec is not None else "user-vouched",
             must_cite=True, found_in_section="must-cite", reason="user must-cite",
             doi=normalize_doi(rec.doi if rec is not None and rec.doi else ref.doi),
             ids=dict(rec.ids) if rec is not None else {},
@@ -304,18 +323,51 @@ def merge_must_cite(result: VerifyResult, must: list[LibraryEntry]) -> VerifyRes
     """Keep one entry per paper; the must-cite one wins (and keeps its key)."""
     titles = {normalize_title(e.title) for e in must}
     dois = {d for d in (normalize_doi(e.doi) for e in must) if d}
-    kept = [e for e in result.entries
-            if not e.must_cite and normalize_title(e.title) not in titles
-            and normalize_doi(e.doi) not in dois]
+    kept, mapping = [], {}
+    for e in result.entries:
+        if e.must_cite:
+            continue
+        twin = next((m for m in must if normalize_title(m.title) == normalize_title(e.title)
+                     or (normalize_doi(e.doi) and normalize_doi(m.doi) == normalize_doi(e.doi))), None)
+        if twin is not None:
+            mapping[e.key] = twin.key
+        else:
+            kept.append(e)
     entries = kept + list(must)
+    old = {id(e): e.key for e in entries}
     assign_unique_keys(entries)
-    return VerifyResult(entries, result.dropped, counts(entries, result.dropped))
+    for e in entries:
+        mapping.setdefault(old[id(e)], e.key)
+    resolved = dict(result.resolved)
+    _remap(resolved, mapping)
+    return VerifyResult(entries, result.dropped, counts(entries, result.dropped), resolved)
+
+
+def dedupe_must_cite_keys(entries: list[LibraryEntry]) -> tuple[list[LibraryEntry], list[str]]:
+    """Keep the first must-cite entry per import key; later ones are dropped with a warning."""
+    seen: dict[str, str] = {}
+    out, warns = [], []
+    for e in entries:
+        if e.key in seen:
+            warns.append(f"must-cite key {e.key!r} is used twice; kept {seen[e.key]!r}, dropped {e.title!r}")
+            continue
+        seen[e.key] = e.title
+        out.append(e)
+    return out, warns
 
 
 # -- BibTeX -------------------------------------------------------------------------
 
 def _bib(v) -> str:
     return re.sub(r"[{}]", "", str(v)).strip()
+
+
+_TEX = {"\\": "\\textbackslash{}", "&": "\\&", "%": "\\%", "$": "\\$", "#": "\\#", "_": "\\_",
+        "{": "\\{", "}": "\\}", "~": "\\textasciitilde{}", "^": "\\textasciicircum{}"}
+
+
+def _tex(v) -> str:
+    return "".join(_TEX.get(c, c) for c in str(v)).strip()
 
 
 def write_bibtex(entries: list[LibraryEntry]) -> str:
@@ -325,9 +377,11 @@ def write_bibtex(entries: list[LibraryEntry]) -> str:
             kind, container = "article", ("journal", e.journal)
         else:
             kind, container = "inproceedings", ("booktitle", e.venue or "arXiv")
-        fields = [("title", e.title), ("author", " and ".join(e.authors)), ("year", e.year),
-                  container, ("volume", e.volume), ("pages", e.pages), ("doi", e.doi)]
-        body = ",\n".join(f"  {k}={{{_bib(v)}}}" for k, v in fields if v not in (None, ""))
+        fields = [("title", "{" + _tex(e.title) + "}" if e.title else None),
+                  ("author", " and ".join(_tex(a) for a in e.authors)), ("year", e.year),
+                  (container[0], _tex(container[1])), ("volume", e.volume), ("pages", e.pages), ("doi", e.doi)]
+        body = ",\n".join(f"  {k}={{{v if k in ('title', 'author', 'journal', 'booktitle') else _bib(v)}}}"
+                          for k, v in fields if v not in (None, ""))
         blocks.append(f"@{kind}{{{e.key},\n{body}\n}}")
     return "\n\n".join(blocks) + ("\n" if blocks else "")
 
@@ -341,16 +395,17 @@ def _write_atomic(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def save_library(paper_dir, result: VerifyResult) -> None:
+def save_library(paper_dir, result: VerifyResult, task_files=None) -> None:
+    """task_files: the valid candidate files snapshotted when the candidates were loaded."""
     ref = Path(paper_dir) / "references"
-    files, _ = _scan_candidates(paper_dir)
+    files = task_files if task_files is not None else _scan_candidates(paper_dir)[0]
     tasks = {tid: {"section": section, "search_type": stype, "candidates": len(cands)}
              for tid, section, stype, cands in files}
     _write_atomic(ref / "library.json",
                   json.dumps([dataclasses.asdict(e) for e in result.entries], ensure_ascii=False, indent=2) + "\n")
     _write_atomic(ref / "references.bib", write_bibtex(result.entries))
     _write_atomic(ref / "search_log.json",
-                  json.dumps({"dropped": result.dropped, "tasks": tasks}, ensure_ascii=False, indent=2) + "\n")
+                  json.dumps({"dropped": result.dropped, "resolved": result.resolved, "tasks": tasks}, ensure_ascii=False, indent=2) + "\n")
     for tid in tasks:
         task_done(paper_dir, f"lit:{tid}")
 
@@ -391,18 +446,21 @@ def _cmd_verify(args) -> int:
     except (SettingsError, OSError) as e:
         print(str(e), file=sys.stderr)
         return 2
-    cands, invalid = load_candidates(paper)
+    files, invalid = _scan_candidates(paper)
+    cands = [c for f in files for c in f[3]]
     imports = load_imports(paper)
     previous = None
     log = _load_log(paper)
     prev_entries = load_library(paper)
     if prev_entries or log:
-        previous = VerifyResult(entries=prev_entries, dropped=(log or {}).get("dropped", []), counts={})
+        previous = VerifyResult(entries=prev_entries, dropped=(log or {}).get("dropped", []), counts={},
+                                resolved=(log or {}).get("resolved", {}))
     lookup = Lookup(cache_path=paper / "references" / "cache.json")
     result = verify_candidates(cands, imports["library"], lookup, settings.cutoff, previous)
-    result = merge_must_cite(result, add_must_cite(imports["must_cite"], lookup))
-    save_library(paper, result)
-    emit({**result.counts, "invalid_task_files": invalid, "warnings": imports["warnings"]})
+    must, dup_warns = dedupe_must_cite_keys(add_must_cite(imports["must_cite"], lookup))
+    result = merge_must_cite(result, must)
+    save_library(paper, result, files)
+    emit({**result.counts, "invalid_task_files": invalid, "warnings": imports["warnings"] + dup_warns})
     return 1 if invalid else 0
 
 
