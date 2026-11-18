@@ -7,3 +7,17 @@ def test_tsam_materials_validate():
     r = validate_materials(p, p.parent)
     assert r.missing == {"idea.md": [], "experiment_log.md": []} and r.has_results
     assert r.figures == ["tsam_overview.png"] and r.captions_missing == []
+
+
+def test_journal_topic_fixture(capsys):
+    import json
+    from po.bibimport import load_imports
+    from po.cli import main
+    p = Path("tests/fixtures/journal_topic/paper")
+    r = validate_materials(p, p.parent)
+    assert r.missing == {"idea.md": [], "experiment_log.md": []} and r.has_results
+    imp = load_imports(p)
+    assert [len(imp["library"]), len(imp["must_cite"]), imp["warnings"]] == [2, 1, []]
+    assert all(ref.abstract for ref in imp["library"]) and imp["must_cite"][0].key == "hu2020battery"
+    assert main(["outline", "validate", "--paper", str(p)]) == 0
+    assert json.loads(capsys.readouterr().out)["ok"]

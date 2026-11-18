@@ -1,0 +1,147 @@
+{
+  "plotting_plan": [],
+  "intro_related_work_plan": {
+    "introduction_strategy": {
+      "hook_hypothesis": "Cycle-life testing of new lithium-ion cells and fast-charging protocols takes months, so predicting cycle life from the first 100 cycles would shorten battery development.",
+      "problem_gap_hypothesis": "On the evaluated 124-cell fast-charging dataset, early-cycle models give point predictions without calibrated uncertainty, and their errors grow on cells charged with protocols absent from training.",
+      "search_directions": [
+        "Find reviews of lithium-ion battery remaining useful life and cycle-life prediction methods published in energy and power-source journals",
+        "Find highly cited papers on lithium-ion battery degradation mechanisms and the cost and duration of cycle-life testing",
+        "Identify foundational data-driven battery prognostics papers (2010-2020) on capacity fade and state-of-health forecasting"
+      ]
+    },
+    "related_work_strategy": {
+      "overview": "Contrast early-cycle feature models with sequence and probabilistic models of capacity fade, to motivate a constrained tree model with calibrated intervals.",
+      "subsections": [
+        {
+          "subsection_title": "2.1 Early-cycle feature-based prediction",
+          "methodology_cluster": "Hand-crafted features from early charge and discharge cycles with linear or tree-based regressors",
+          "sota_investigation_mission": "Find 2019-2025 journal papers that predict battery cycle life or remaining useful life from the first 100 cycles or fewer, and the datasets they use.",
+          "limitation_hypothesis": "They give point predictions without calibrated uncertainty, and their accuracy drops on cells charged with protocols not seen in training.",
+          "limitation_search_queries": [
+            "early cycle life prediction lithium-ion battery generalization to unseen charging protocols",
+            "battery cycle life prediction uncertainty quantification prediction intervals"
+          ],
+          "bridge_to_our_method": "Our monotone gradient-boosted model adds split-conformal prediction intervals whose coverage we measure on seen and unseen protocols."
+        },
+        {
+          "subsection_title": "2.2 Sequence and probabilistic models of capacity fade",
+          "methodology_cluster": "Recurrent neural networks and Gaussian processes that extrapolate capacity-fade curves",
+          "sota_investigation_mission": "Find journal papers that use LSTM networks or Gaussian process regression to forecast capacity fade and remaining useful life of lithium-ion batteries.",
+          "limitation_hypothesis": "They need long capacity histories and extrapolate poorly from the first 100 cycles, before capacity fade is visible.",
+          "limitation_search_queries": [
+            "LSTM remaining useful life prediction lithium-ion battery capacity degradation",
+            "Gaussian process regression battery capacity fade extrapolation from early cycles"
+          ],
+          "bridge_to_our_method": "Our model uses discharge voltage-curve features that change before capacity fades, instead of extrapolating the capacity curve."
+        }
+      ]
+    }
+  },
+  "section_plan": [
+    {
+      "section_title": "Abstract",
+      "subsections": [
+        {
+          "subsection_title": "Abstract Content",
+          "content_bullets": [
+            "State the cost of cycle-life testing and the goal of predicting cycle life from the first 100 cycles (idea.md, Problem Statement).",
+            "Introduce the monotone gradient-boosted model and the split-conformal intervals (idea.md, Proposed Methodology).",
+            "Report the primary and secondary test RMSE and the interval coverage from Tables 1 and 3 of experiment_log.md."
+          ],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "3. Method",
+      "subsections": [
+        {
+          "subsection_title": "3.1 Early-cycle features",
+          "content_bullets": [
+            "Define Delta Q_{100-10}(V) and its variance, minimum and skewness, sampled at 1,000 voltages between 2.0 V and 3.5 V (idea.md).",
+            "List the capacity-fade, resistance and charge-time features (idea.md).",
+            "Define the target y = log10 N with N the first cycle below 80% of nominal capacity (idea.md)."
+          ],
+          "must_cite": ["hu2020battery"],
+          "citation_hints": [
+            "Severson et al. (Data-driven prediction of battery cycle life before capacity degradation)"
+          ]
+        },
+        {
+          "subsection_title": "3.2 Monotone gradient boosting and conformal intervals",
+          "content_bullets": [
+            "Describe gradient-boosted regression trees with the monotonic constraints listed in idea.md.",
+            "Formalize split conformal prediction: calibration residuals in log space, the quantile index ceil((n+1)(1-alpha)) and the interval [10^(y_hat-q), 10^(y_hat+q)] (idea.md)."
+          ],
+          "citation_hints": [
+            "Friedman (Greedy function approximation: A gradient boosting machine)",
+            "research paper or technical report introducing 'split conformal prediction'"
+          ]
+        }
+      ]
+    },
+    {
+      "section_title": "4. Experiments",
+      "subsections": [
+        {
+          "subsection_title": "4.1 Dataset, baselines and setup",
+          "content_bullets": [
+            "Describe the 124-cell dataset, the 41/43/40 split and the 10 calibration cells (experiment_log.md, Experimental Setup).",
+            "Describe the four re-implemented baselines and all hyperparameters (experiment_log.md).",
+            "Define RMSE, MAPE, empirical coverage and mean interval width."
+          ],
+          "citation_hints": [
+            "Zou and Hastie (Regularization and variable selection via the elastic net)",
+            "Richardson et al. (Gaussian process regression for forecasting battery state of health)",
+            "Hochreiter and Schmidhuber (Long short-term memory)"
+          ]
+        },
+        {
+          "subsection_title": "4.2 Prediction accuracy",
+          "content_bullets": [
+            "Present Table 1 of experiment_log.md and compare the monotone GBRT with each baseline on both test sets.",
+            "Discuss the larger errors on the secondary test set and the over-prediction of short-lived cells by the GPR and LSTM baselines (Qualitative Observations)."
+          ],
+          "citation_hints": []
+        },
+        {
+          "subsection_title": "4.3 Ablation and prediction intervals",
+          "content_bullets": [
+            "Present the ablation in Table 2 of experiment_log.md and the role of the Delta Q features and the monotonic constraints.",
+            "Present the coverage and width in Table 3, and explain the under-coverage on the secondary test set by the protocol shift.",
+            "Report the runtime figures from experiment_log.md."
+          ],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "5. Conclusion",
+      "subsections": [
+        {
+          "subsection_title": "Conclusion Content",
+          "content_bullets": [
+            "Summarize the accuracy and coverage results of Tables 1 and 3.",
+            "State what the results mean for shortening cycle-life testing on this dataset."
+          ],
+          "citation_hints": []
+        }
+      ]
+    },
+    {
+      "section_title": "6. Limitations",
+      "subsections": [
+        {
+          "subsection_title": "Limitations Content",
+          "content_bullets": [
+            "One public dataset of a single cell chemistry and format.",
+            "Coverage below nominal under the charging-protocol shift on the secondary test set.",
+            "Baselines are our re-implementations, trained on 31 cells."
+          ],
+          "citation_hints": []
+        }
+      ]
+    }
+  ]
+}
