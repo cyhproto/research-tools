@@ -1,0 +1,4 @@
+[
+  {"id": "silva2021battery", "type": "article-journal", "title": "Battery life prediction", "author": [{"family": "Silva", "given": "Ana"}], "issued": {"date-parts": [[2021, 3]]}, "container-title": "Applied Energy", "DOI": "10.1016/j.apenergy.2021.000001", "abstract": "We predict battery life from early-cycle data."},
+  {"id": "lee2020grid", "type": "article-journal", "title": "Grid storage scheduling", "author": [{"family": "Lee", "given": "Kim"}], "issued": {"date-parts": [[2020]]}, "container-title": "Energy Reports"}
+]
