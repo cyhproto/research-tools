@@ -163,10 +163,10 @@ When both branches have finished, mark each branch this run completed: `$PO stat
 
 **Hand-edit conflicts** apply to any `paper replace`. It exits 1 with `{"conflict": [sections]}`.
 1. Run `$PO paper save-version --kind user` to keep the user's version.
-2. For each listed section (the title line is `Title`), ask the user to choose:
+2. For each listed section, ask the user to choose. `Title` stands for the `#` title line and any text above the first `##` heading; an edited `###` subheading counts as an edit of its section.
    - replace it;
    - keep theirs (skip it);
-   - save the new text beside it: write the section's text from the draft file to `$PAPER/drafts/<Section>-new.md` yourself (spaces become `-`).
+   - save the new text beside it: write the section's text from the draft file to `$PAPER/drafts/<Section>-new.md` yourself (spaces become `-`; for `Title`, the draft's title line and the text above its first `##` heading go to `drafts/Title-new.md`).
 
    End your turn and wait for the user.
 3. Run the same `paper replace` again (same `--from`), with:
@@ -220,7 +220,7 @@ Before the panel on version 0:
    4. **Decide.** Run `$PO review decide --old $PAPER/reviews/review_v<K>.json --new $PAPER/reviews/review_v<K+1>.json --record <K+1>`.
    5. **Keep or undo.**
       - `ACCEPTED_*` outcome: if `review:v<K+1>:kept` is not done, run `$PO paper accept --from $PAPER/drafts/candidate_v<K+1>.md`.
-        - Exit 1 (`hand_edits_after_review`): the user edited `paper.md` during the review, and the candidate would drop those paragraphs. Their version is saved at `saved`. Show the paragraphs and ask whether to:
+        - Exit 1 (`hand_edits_after_review`): the candidate would drop hand edits that no review step kept: paragraphs the user edited during the review, or an edited title or subheading that the candidate changed. Their version is saved at `saved`. Show the listed paragraphs and headings and ask whether to:
           - accept anyway: re-run with `--force`; their version stays in `drafts/`;
           - or stop, so they can merge their edits into the candidate by hand and run /paper-orchestra again.
 

@@ -102,7 +102,12 @@ def _collapse(s: str) -> str:
     return " ".join(s.split())
 
 
-def paragraphs(md: str) -> list[str]:
+def paragraphs(md: str, headings: bool = False) -> list[str]:
+    """The blank-line separated blocks of md, without heading lines; a fenced block is one block.
+
+    headings=True also returns each heading line other than `##` (the `#` title, `###` and deeper)
+    outside fences, as a block of its own. Hand-edit detection uses that (units()); protect and
+    restore never mark or move headings (Ruling P33)."""
     out: list[str] = []
     cur: list[str] = []
 
@@ -121,12 +126,25 @@ def paragraphs(md: str) -> list[str]:
         elif tag == "close":
             cur.append(line)
             flush()
-        elif ANY_HEADING_RE.match(line) or not line.strip():
+        elif ANY_HEADING_RE.match(line):
+            flush()
+            if headings and not H2_RE.match(line):
+                out.append(line.rstrip())
+        elif not line.strip():
             flush()
         else:
             cur.append(line)
     flush()
     return out
+
+
+def units(md: str) -> list[str]:
+    """The units hand-edit detection compares: paragraphs, and headings other than `##`."""
+    return paragraphs(md, headings=True)
+
+
+def is_heading(unit: str) -> bool:
+    return bool(ANY_HEADING_RE.match(unit))
 
 
 def _without_references(md: str) -> str:
@@ -140,21 +158,25 @@ def _is_edited(p: str, known: set[str], prot: set[str]) -> bool:
 
 
 def hand_edited_paragraphs(current_md: str, tool_md: str, protected: Sequence[str] = ()) -> list[str]:
-    known = {_collapse(p) for p in paragraphs(tool_md)}
+    """Units of current_md (paragraphs, and headings other than `##`) that tool_md lacks or that are
+    protected, outside References."""
+    known = {_collapse(p) for p in units(tool_md)}
     prot = {_collapse(p) for p in protected}
-    return [p for p in paragraphs(_without_references(current_md)) if _is_edited(p, known, prot)]
+    return [p for p in units(_without_references(current_md)) if _is_edited(p, known, prot)]
 
 
 def sections_with_hand_edits(current_md: str, tool_md: str, protected: Sequence[str] = ()) -> list[str]:
-    known = {_collapse(p) for p in paragraphs(tool_md)}
+    """Names of the sections holding a hand-edited unit; `Title` for the title line and the text
+    before the first `##` section."""
+    known = {_collapse(p) for p in units(tool_md)}
     prot = {_collapse(p) for p in protected}
     pre, secs = split_sections(current_md)
     out: list[str] = []
-    if any(_is_edited(p, known, prot) for p in paragraphs(pre)):
+    if any(_is_edited(p, known, prot) for p in units(pre)):
         out.append(TITLE)
     for s in secs:
         if s.name != "References" and s.name not in out and any(
-                _is_edited(p, known, prot) for p in paragraphs(s.text)):
+                _is_edited(p, known, prot) for p in units(s.text)):
             out.append(s.name)
     return out
 
@@ -317,7 +339,7 @@ def _record_provenance(paper: Path, current: str, prev: str | None, new_md: str,
     keep = list(prot)
     if prev is not None:
         keep += hand_edited_paragraphs(current, prev, prot)
-    present = {_collapse(p) for p in paragraphs(new_md)}
+    present = {_collapse(p) for p in units(new_md)}
     out, seen = [], set()
     for p in keep:
         c = _collapse(p)
@@ -353,15 +375,17 @@ def _cmd_replace(args) -> int:
 
 
 def late_hand_edits(current_md: str, tool_md: str | None, protected: Sequence[str], new_md: str) -> list[str]:
-    """Hand edits made since the protected list was last set (e.g. during a review) that new_md lacks.
+    """Hand edits that new_md lacks and that no review step accounts for: paragraphs edited since the
+    protected list was last set (e.g. during a review), and any hand-edited heading.
 
-    Paragraphs already protected are left to `review restore` (keep) or `review changes` (revise)."""
+    Protected paragraphs are left to `review restore` (keep) or `review changes` (revise). Headings
+    are never marked, so neither step covers them: a candidate that drops one is reported."""
     if tool_md is None:
         return []
     prot = {_collapse(p) for p in protected}
-    kept = {_collapse(p) for p in paragraphs(new_md)}
-    return [p for p in hand_edited_paragraphs(current_md, tool_md)
-            if _collapse(p) not in prot and _collapse(p) not in kept]
+    kept = {_collapse(p) for p in units(new_md)}
+    return [p for p in hand_edited_paragraphs(current_md, tool_md, protected)
+            if _collapse(p) not in kept and (_collapse(p) not in prot or is_heading(p))]
 
 
 def _user_copy(paper: Path, md: str) -> Path:

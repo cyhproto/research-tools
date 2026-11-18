@@ -347,3 +347,83 @@ def test_first_write_into_an_empty_paper_md_has_no_conflict(tmp_path):
     src = tmp_path / "w.md"
     src.write_text("## Method\n\nTool method.\n")
     assert _main(["paper", "replace", "--paper", str(paper), "--owner", "section-writer", "--from", str(src)]) == 0
+
+
+# --- I2 / P33: the title and ### headings count for hand-edit detection --------------------
+H_TOOL = "# Original Title\n\n## Method\n\n### Setup\n\nTool method.\n\n## Experiments\n\nTool exp.\n"
+
+
+def test_heading_units_only_for_detection():
+    md = "# T\n\nLead.\n\n## S\n\n### Sub\nP\n\n```\n# in code\n```\n"
+    assert paragraphs(md) == ["Lead.", "P", "```\n# in code\n```"]
+    assert paragraphs(md, headings=True) == ["# T", "Lead.", "### Sub", "P", "```\n# in code\n```"]
+
+
+def test_edited_title_is_a_conflict():
+    cur = H_TOOL.replace("# Original Title", "# My Hand-Edited Title")
+    assert sections_with_hand_edits(cur, H_TOOL) == ["Title"]
+    assert hand_edited_paragraphs(cur, H_TOOL) == ["# My Hand-Edited Title"]
+    new = "# Tool Title\n\n## Method\n\nNew method.\n\n## Experiments\n\nNew exp.\n"
+    with pytest.raises(HandEditConflict) as e:
+        replace_owned(cur, new, "section-writer", ML, tool_md=H_TOOL)
+    assert e.value.sections == ["Title"]
+    merged, _ = replace_owned(cur, new, "section-writer", ML, tool_md=H_TOOL, force_sections=["Title"])
+    assert merged.startswith("# Tool Title\n") and "My Hand-Edited" not in merged
+    merged, _ = replace_owned(cur, new, "section-writer", ML, tool_md=H_TOOL, only=["Method", "Experiments"])
+    assert merged.startswith("# My Hand-Edited Title\n") and "New method." in merged
+
+
+def test_renamed_subheading_is_a_conflict_for_its_section():
+    cur = H_TOOL.replace("### Setup", "### Experimental setup")
+    assert sections_with_hand_edits(cur, H_TOOL) == ["Method"]
+    with pytest.raises(HandEditConflict) as e:
+        replace_owned(cur, "## Method\n\nNew.\n\n## Experiments\n\nNew exp.\n", "section-writer", ML, tool_md=H_TOOL)
+    assert e.value.sections == ["Method"]
+
+
+def test_cli_title_edit_keep_then_force(tmp_path, capsys):
+    import json
+    from po.state import get_protected
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    base = ["--paper", str(paper)]
+    src = tmp_path / "w.md"
+    src.write_text(H_TOOL)
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 0
+    pm = paper / "paper.md"
+    pm.write_text(pm.read_text().replace("# Original Title", "# My Hand-Edited Title"))
+    capsys.readouterr()
+    assert _main(["paper", "edits", *base]) == 0
+    assert json.loads(capsys.readouterr().out) == {"sections": ["Title"], "paragraphs": 1}
+    src.write_text("# Tool Title\n\n## Method\n\nNew method.\n")
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Title"]}
+    # keep theirs: --only skips the title, which stays the user's for the next write
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src), "--only", "Method"]) == 0
+    assert pm.read_text().startswith("# My Hand-Edited Title\n") and "New method." in pm.read_text()
+    assert "# My Hand-Edited Title" in get_protected(paper)
+    capsys.readouterr()
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Title"]}
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src), "--force", "Title"]) == 0
+    assert pm.read_text().startswith("# Tool Title\n")
+
+
+def test_accept_asks_when_a_candidate_drops_an_edited_heading(tmp_path, capsys):
+    import json
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    base = ["--paper", str(paper)]
+    save_version(paper, H_TOOL, "tool")
+    (paper / "paper.md").write_text(H_TOOL.replace("# Original Title", "# My Title"))
+    assert _main(["review", "protect", *base, "--out", str(paper / "drafts/marked_v0.md")]) == 0
+    assert json.loads(capsys.readouterr().out)["protected"] == 0  # headings are never marked
+    cand = paper / "drafts/candidate_v1.md"
+    cand.write_text((paper / "drafts/marked_v0.md").read_text().replace("Tool exp.", "Better exp."))
+    assert _main(["paper", "accept", *base, "--from", str(cand)]) == 0  # the reviser kept the title
+    assert _main(["review", "protect", *base, "--out", str(paper / "drafts/marked_v1.md")]) == 0
+    cand2 = paper / "drafts/candidate_v2.md"
+    cand2.write_text((paper / "drafts/marked_v1.md").read_text().replace("# My Title", "# Reviser Title"))
+    capsys.readouterr()
+    assert _main(["paper", "accept", *base, "--from", str(cand2)]) == 1
+    assert json.loads(capsys.readouterr().out)["hand_edits_after_review"] == ["# My Title"]

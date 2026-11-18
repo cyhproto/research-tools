@@ -100,11 +100,14 @@ def decide(old: dict, new: dict) -> dict:
 # ---- protection ----------------------------------------------------------
 
 def protected_set(current_md: str, tool_md: str | None, previous: list[str]) -> list[str]:
-    """Hand-edited paragraphs (vs tool_md; "" makes every paragraph the user's), plus the
-    previously protected ones still present. tool_md None detects nothing new."""
-    from .paper import hand_edited_paragraphs
+    """Hand-edited units (vs tool_md; "" makes every paragraph the user's), plus the previously
+    protected ones still present. tool_md None detects nothing new.
+
+    Edited headings stay in the list, so later writes still see them as the user's, but protect()
+    marks paragraphs only."""
+    from .paper import hand_edited_paragraphs, units
     edited = hand_edited_paragraphs(current_md, tool_md) if tool_md is not None else []
-    present = {_collapse(p): p for p in paragraphs(current_md)}
+    present = {_collapse(p): p for p in units(current_md)}
     out, seen = [], set()
     for p in list(edited) + [present[_collapse(q)] for q in previous if _collapse(q) in present]:
         c = _collapse(p)
