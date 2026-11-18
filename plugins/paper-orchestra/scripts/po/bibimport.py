@@ -28,21 +28,32 @@ _ACCENT_RE = re.compile(r"""\\(["'`^~])\s*(?:\{\s*\\?([A-Za-z])\s*\}|\\?([A-Za-z
 _STYLE_RE = re.compile(r"\\(?:emph|textit|textbf|textsc|textrm|mathrm)\s*\{([^{}]*)\}")
 
 
+_DROP_ACCENT_RE = re.compile(r"\\[vcuHkrbdt]\s*\{([^{}]*)\}")
+_LETTERS = {"ss": "ss", "ae": "ae", "AE": "AE", "oe": "oe", "OE": "OE", "aa": "a", "AA": "A",
+            "o": "o", "O": "O", "l": "l", "L": "L", "i": "i", "j": "j"}
+_LETTER_RE = re.compile(r"\\(ss|ae|AE|oe|OE|aa|AA|o|O|l|L|i|j)(?![A-Za-z])\s*(?:\{\})?")
+
+
 def clean_latex(s: str) -> str:
     def accent(m: re.Match) -> str:
         return unicodedata.normalize("NFC", (m.group(2) or m.group(3)) + _ACCENTS[m.group(1)])
 
+    s = s.replace("\\{", "\x00").replace("\\}", "\x01")
     s = _ACCENT_RE.sub(accent, s)
     prev = None
     while prev != s:  # unwrap nested style commands
         prev, s = s, _STYLE_RE.sub(r"\1", s)
+    s = _DROP_ACCENT_RE.sub(r"\1", s)  # \v{S} -> S (accent dropped, letter kept)
+    s = _LETTER_RE.sub(lambda m: _LETTERS[m.group(1)], s)
     s = re.sub(r"\\([&%_$#])", r"\1", s)
-    s = s.replace("{", "").replace("}", "").replace("--", "\u2013")
+    s = s.replace("{", "").replace("}", "")
+    s = s.replace("---", "\u2014").replace("--", "\u2013").replace("~", " ")
+    s = s.replace("\x00", "{").replace("\x01", "}")
     return re.sub(r"\s+", " ", s).strip()
 
 
 def normalize_doi(doi: str | None) -> str | None:
-    if not doi:
+    if not doi or not isinstance(doi, str):
         return None
     d = doi.strip().lower()
     d = re.sub(r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", d)
@@ -160,6 +171,8 @@ def _split_authors(raw: str) -> list[str]:
     out = []
     for nm in names:
         nm = nm.strip()
+        if nm.lower() == "others":  # "and others" == et al., not an author
+            continue
         if nm.startswith("{") and nm.endswith("}") and _match(nm, 0) == len(nm):
             out.append(clean_latex(nm))  # corporate author
             continue
@@ -236,7 +249,7 @@ def parse_bibtex(text: str, source_file: str = "") -> tuple[list[ImportedRef], l
             title=clean_latex(f.get("title", "")),
             authors=_split_authors(f["author"]) if f.get("author") else [],
             year=_year(f.get("year") or f.get("date")),
-            doi=normalize_doi(clean_latex(f["doi"])) if f.get("doi") else None,
+            doi=normalize_doi(re.sub(r"\\([_%&])", r"\1", f["doi"])) if f.get("doi") else None,
             venue=clean_latex(venue) if venue else None,
             abstract=clean_latex(f["abstract"]) if f.get("abstract") else None,
             source_file=source_file,
@@ -244,17 +257,53 @@ def parse_bibtex(text: str, source_file: str = "") -> tuple[list[ImportedRef], l
     return refs, warns
 
 
-def _first(v) -> str | None:
+def _str(v) -> str | None:
+    """Coerce a CSL value to a non-empty string, or None if unusable."""
     if isinstance(v, list):
-        v = v[0] if v else None
-    return str(v) if v else None
+        v = next((x for x in v if isinstance(x, str) and x.strip()), None)
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        v = str(v)
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    return None
+
+
+def _csl_year(issued) -> int | None:
+    try:
+        return int(issued["date-parts"][0][0])
+    except (KeyError, IndexError, TypeError, ValueError):
+        pass
+    if isinstance(issued, dict):
+        return _year(_str(issued.get("raw") or issued.get("literal")))
+    return _year(issued) if isinstance(issued, str) else None
+
+
+def _csl_item(it: dict, source_file: str) -> ImportedRef:
+    key = _str(it.get("id")) or _str(it.get("citation-key")) or ""
+    authors = []
+    for a in it.get("author") or []:
+        if not isinstance(a, dict):
+            continue
+        name = " ".join(x for x in (_str(a.get("given")), _str(a.get("family"))) if x) or _str(a.get("literal")) or ""
+        if name:
+            authors.append(name)
+    return ImportedRef(
+        key=key,
+        title=re.sub(r"\s+", " ", _str(it.get("title")) or "").strip(),
+        authors=authors,
+        year=_csl_year(it.get("issued")),
+        doi=normalize_doi(_str(it.get("DOI"))),
+        venue=_str(it.get("container-title")),
+        abstract=_str(it.get("abstract")),
+        source_file=source_file,
+    )
 
 
 def parse_csl_json(text: str, source_file: str = "") -> tuple[list[ImportedRef], list[str]]:
     warns: list[str] = []
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError as e:
+        data = json.loads(text.lstrip("\ufeff"))
+    except (json.JSONDecodeError, TypeError, AttributeError) as e:
         return [], [f"{source_file}: invalid JSON ({e})"]
     if isinstance(data, dict):
         data = data.get("items", [data])
@@ -265,31 +314,14 @@ def parse_csl_json(text: str, source_file: str = "") -> tuple[list[ImportedRef],
         if not isinstance(it, dict):
             warns.append(f"{source_file}: item {idx} is not an object; skipped")
             continue
-        key = str(it.get("id") or it.get("citation-key") or "")
-        if not key:
-            warns.append(f"{source_file}: item {idx} has no id or citation-key")
-        authors = []
-        for a in it.get("author") or []:
-            if not isinstance(a, dict):
-                continue
-            name = " ".join(x for x in (a.get("given"), a.get("family")) if x) or a.get("literal", "")
-            if name.strip():
-                authors.append(name.strip())
-        year = None
         try:
-            year = int(it["issued"]["date-parts"][0][0])
-        except (KeyError, IndexError, TypeError, ValueError):
-            pass
-        refs.append(ImportedRef(
-            key=key,
-            title=re.sub(r"\s+", " ", str(it.get("title") or "")).strip(),
-            authors=authors,
-            year=year,
-            doi=normalize_doi(it.get("DOI")),
-            venue=_first(it.get("container-title")),
-            abstract=it.get("abstract") or None,
-            source_file=source_file,
-        ))
+            ref = _csl_item(it, source_file)
+        except Exception as e:  # never raise on user input
+            warns.append(f"{source_file}: item {idx} is unusable ({e}); skipped")
+            continue
+        if not ref.key:
+            warns.append(f"{source_file}: item {idx} has no id or citation-key")
+        refs.append(ref)
     return refs, warns
 
 
@@ -300,7 +332,13 @@ def load_imports(paper_dir: Path) -> dict:
         for ext, parser in (("bib", parse_bibtex), ("json", parse_csl_json)):
             p = ref_dir / f"{slot}.{ext}"
             if p.is_file():
-                refs, warns = parser(p.read_text(encoding="utf-8"), p.name)
+                raw = p.read_bytes()
+                try:
+                    txt = raw.decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    txt = raw.decode("latin-1")
+                    out["warnings"].append(f"{p.name}: not valid UTF-8; decoded as latin-1")
+                refs, warns = parser(txt, p.name)
                 out[slot].extend(refs)
                 out["warnings"].extend(warns)
     return out
