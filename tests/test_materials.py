@@ -66,3 +66,32 @@ def test_non_utf8_log_exit_2(tmp_path):
     (p / "materials/experiment_log.md").write_bytes(b"\xff\xfe\x00bad")
     assert validate_materials(p, tmp_path).unreadable_log
     assert main(["materials", "validate", "--paper", str(p)]) == 2
+
+
+def test_subheading_inside_raw_data(tmp_path):
+    p = write(tmp_path, "## Experimental Setup\nx\n## Raw Numeric Data\n### Ablations\nacc 87.3 [manual: x]\n## Qualitative Observations\nx\n")
+    assert validate_materials(p, tmp_path).has_results
+
+
+def test_tag_numbers_not_results(tmp_path):
+    p = write(tmp_path, "## Experimental Setup\nx\n## Raw Numeric Data\n[src#a100: r2024.csv | row=#3 | col=x | scale=100]\n## Qualitative Observations\nx\n")
+    assert not validate_materials(p, tmp_path).has_results
+
+
+def test_fenced_comment_not_heading(tmp_path):
+    log = "## Experimental Setup\n```\n# Qualitative Observations\n```\n## Raw Numeric Data\n12.5 [manual: x]\n"
+    assert validate_materials(write(tmp_path, log), tmp_path).missing["experiment_log.md"] == ["Qualitative Observations"]
+
+
+def test_missing_log_exit_2(tmp_path, capsys):
+    p = write(tmp_path, LOG_OK)
+    (p / "materials/experiment_log.md").unlink()
+    assert main(["materials", "validate", "--paper", str(p)]) == 2
+    assert "no results" in capsys.readouterr().err
+
+
+def test_unreadable_tag_exit_1(tmp_path):
+    log = LOG_OK.replace("12.5 [manual: x]", "12.5 [src: nope.csv | row=#1 | col=x]")
+    p = write(tmp_path, log)
+    assert validate_materials(p, tmp_path).verify["unreadable"] == 1
+    assert main(["materials", "validate", "--paper", str(p)]) == 1

@@ -1,11 +1,12 @@
 """Materials validation: required headings, results, source tags and figures."""
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from .cli import common_parent, emit
 from .numtok import find_numbers, is_trivial
-from .sourcetags import Unreadable, _read_log, parse_tags, untagged_numbers, _verify_text
+from .sourcetags import (Unreadable, parse_tags, read_log, summarize, untagged_numbers,
+                         verify_text, _line_tags, _mask)
 
 IDEA_HEADINGS = ["Problem Statement", "Core Hypothesis", "Proposed Methodology",
                  "Expected Contribution"]
@@ -25,33 +26,42 @@ class MaterialsReport:
     figures: list[str]
     captions_missing: list[str]
     unreadable_log: str | None = None
-    notes: list[str] = field(default_factory=list)
 
 
 def _norm(text: str) -> str:
     return _NUMBERING.sub("", text.strip()).lower()
 
 
-def _headings(text: str) -> list[tuple[int, str]]:
-    out = []
+def _headings(text: str) -> list[tuple[int, str, int]]:
+    """(line index, normalized text, level), skipping fenced code blocks."""
+    out, fence = [], None
     for i, line in enumerate(text.splitlines()):
+        f = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if f:
+            if fence is None:
+                fence = f.group(1)[0]
+            elif f.group(1)[0] == fence:
+                fence = None
+            continue
+        if fence:
+            continue
         m = _HEADING.match(line)
         if m:
-            out.append((i, _norm(m.group(2))))
+            out.append((i, _norm(m.group(2)), len(m.group(1))))
     return out
 
 
 def _missing(text: str, required: list[str]) -> list[str]:
-    found = [h for _, h in _headings(text)]
+    found = [h for _, h, _ in _headings(text)]
     return [r for r in required if not any(h.startswith(r.lower()) for h in found)]
 
 
 def _section(text: str, name: str) -> str:
     lines = text.splitlines()
     heads = _headings(text)
-    for k, (i, h) in enumerate(heads):
+    for k, (i, h, level) in enumerate(heads):
         if h.startswith(name.lower()):
-            end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+            end = next((j for j, _, lv in heads[k + 1:] if lv <= level), len(lines))
             return "\n".join(lines[i + 1:end])
     return ""
 
@@ -75,20 +85,19 @@ def validate_materials(paper_dir: Path, project_root: Path) -> MaterialsReport:
     has_results, untagged, verify, unreadable = False, 0, None, None
     if log.is_file():
         try:
-            text = _read_log(log)
+            text = read_log(log)
         except (Unreadable, OSError) as e:
             text, unreadable = None, str(e)
         if text is None:
             missing["experiment_log.md"] = []
         else:
             missing["experiment_log.md"] = _missing(text, LOG_HEADINGS)
-            has_results = any(not is_trivial(n)
-                              for n in find_numbers(_section(text, "Raw Numeric Data")))
+            sec = "\n".join(_mask(ln, _line_tags(ln))
+                             for ln in _section(text, "Raw Numeric Data").splitlines())
+            has_results = any(not is_trivial(n) for n in find_numbers(sec))
             untagged = len(untagged_numbers(text))
             if parse_tags(text):
-                res = _verify_text(text, Path(project_root))
-                verify = {s: sum(1 for r in res if r.status == s)
-                          for s in ("ok", "mismatch", "unreadable", "manual")}
+                verify = summarize(verify_text(text, Path(project_root)))
     else:
         missing["experiment_log.md"] = list(LOG_HEADINGS)
     figdir = mats / "figures"

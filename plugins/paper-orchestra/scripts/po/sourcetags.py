@@ -259,6 +259,20 @@ def _read_log(log_path: Path) -> str:
         raise Unreadable(f"{log_path} is not valid UTF-8")
 
 
+def read_log(log_path: Path) -> str:
+    """Read a log as UTF-8; raises Unreadable if it cannot be decoded."""
+    return _read_log(log_path)
+
+
+def verify_text(text: str, project_root: Path) -> list[TagResult]:
+    return _verify_text(text, project_root)
+
+
+def summarize(results: list[TagResult]) -> dict:
+    return {s: sum(1 for r in results if r.status == s)
+            for s in ("ok", "mismatch", "unreadable", "manual")}
+
+
 def verify_log(log_path: Path, project_root: Path) -> list[TagResult]:
     """Raises Unreadable if the log itself cannot be decoded."""
     return _verify_text(_read_log(log_path), project_root)
@@ -329,8 +343,7 @@ def _cmd_verify(args) -> int:
         emit({"error": str(e)})
         return 2
     results = _verify_text(text, project)
-    counts = {s: sum(1 for r in results if r.status == s)
-              for s in ("ok", "mismatch", "unreadable", "manual")}
+    counts = summarize(results)
     untagged = untagged_numbers(text)
     items = [{"line": r.tag.line_no, "kind": r.tag.kind, "id": r.tag.id,
               "status": r.status, "written": r.tag.written.token if r.tag.written else None,
