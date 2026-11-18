@@ -116,8 +116,8 @@ def _to_float(s: str) -> float:
 
 def _table_cell(path: Path, loc: dict) -> float:
     delim = "\t" if path.suffix.lower() == ".tsv" else ","
-    with path.open(newline="", encoding="utf-8") as f:
-        rows = list(csv.reader(f, delimiter=delim))
+    with path.open(newline="", encoding="utf-8-sig") as f:
+        rows = [r for r in csv.reader(f, delimiter=delim) if any(c.strip() for c in r)]
     if not rows:
         raise Unreadable("empty table")
     header, data = rows[0], rows[1:]
@@ -184,12 +184,16 @@ def _text_cell(path: Path, loc: dict) -> float:
         raise Unreadable(f"bad pattern: {e}")
     if not m or not m.groups():
         raise Unreadable("pattern did not match")
+    if m.group(1) is None:
+        raise Unreadable("pattern group did not match")
     return _to_float(m.group(1))
 
 
 def resolve_src(tag: Tag, project_root: Path) -> float:
     if not tag.path:
         raise Unreadable("no path")
+    if "|" in tag.path:
+        raise Unreadable("fields must be separated by ' | ' (with spaces)")
     path = Path(project_root) / tag.path
     suffix = path.suffix.lower()
     if suffix in _UNSUPPORTED:
@@ -248,8 +252,19 @@ def _calc(tag: Tag, values: dict) -> float:
     return math.sqrt(ss / (len(xs) - 1))
 
 
+def _read_log(log_path: Path) -> str:
+    try:
+        return Path(log_path).read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        raise Unreadable(f"{log_path} is not valid UTF-8")
+
+
 def verify_log(log_path: Path, project_root: Path) -> list[TagResult]:
-    text = Path(log_path).read_text(encoding="utf-8")
+    """Raises Unreadable if the log itself cannot be decoded."""
+    return _verify_text(_read_log(log_path), project_root)
+
+
+def _verify_text(text: str, project_root: Path) -> list[TagResult]:
     values: dict = {}
     results: list[TagResult] = []
     for tag in parse_tags(text):
@@ -308,10 +323,15 @@ def _cmd_verify(args) -> int:
     if not log.is_file():
         emit({"error": f"missing {log}"})
         return 2
-    results = verify_log(log, project)
+    try:
+        text = _read_log(log)
+    except (Unreadable, OSError) as e:
+        emit({"error": str(e)})
+        return 2
+    results = _verify_text(text, project)
     counts = {s: sum(1 for r in results if r.status == s)
               for s in ("ok", "mismatch", "unreadable", "manual")}
-    untagged = untagged_numbers(log.read_text(encoding="utf-8"))
+    untagged = untagged_numbers(text)
     items = [{"line": r.tag.line_no, "kind": r.tag.kind, "id": r.tag.id,
               "status": r.status, "written": r.tag.written.token if r.tag.written else None,
               "source_value": r.source_value, "reason": r.reason} for r in results]

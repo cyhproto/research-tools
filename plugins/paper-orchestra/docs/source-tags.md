@@ -12,6 +12,10 @@ Every number in `materials/experiment_log.md` carries a tag that says where it c
 - `[manual: <free text>]`.
 - A tag applies to the closest non-tag number before it on the same line.
 
+Fields inside a tag are separated by space-pipe-space (` | `, with spaces). A bare `|` without spaces is not a separator, so a regex `pattern=` may contain `|`. A path containing `|` (for example `[src: a.csv|row=1|col=b]`) is reported as unreadable with "fields must be separated by ' | ' (with spaces)".
+
+CSV and TSV files are read as UTF-8 (a BOM is ignored) and blank rows are skipped, so they do not count for `row=#<n>` or `row=last`.
+
 ## Examples
 
 Table cell (`scale=100` turns 0.8731 into 87.31):
@@ -41,7 +45,7 @@ Manual (taken from outside the project; reported, never verified):
 
 ## Matching
 
-A written number matches its source when `abs(written - source) <= 0.5 * 10**-decimals`, where `decimals` is the number of digits written after the point.
+A written number matches its source when `abs(written - source) <= 0.5 * 10**-decimals + 1e-9`, where `decimals` is the number of digits written after the point.
 
 ## Limitations
 

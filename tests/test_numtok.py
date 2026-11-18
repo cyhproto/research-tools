@@ -8,3 +8,21 @@ def test_token_rules():
 
 def test_values_match():
     assert values_match(87.3, 1, 87.31) and not values_match(87.3, 1, 87.36)
+
+def _v(t):
+    return [n.value for n in find_numbers(t)]
+
+def test_sign_contexts():
+    assert _v("a -5") == [-5.0]
+    assert _v("12 +3") == [12.0, 3.0] and find_numbers("12 +3")[1].token == "+3"
+    assert _v("=+4") == [4.0] and find_numbers("=+4")[0].token == "+4"
+    assert _v("x-5") == []
+
+def test_forms():
+    assert _v(".5") == [0.5]
+    assert _v("1234") == [1234.0]
+    assert _v("1,024") == [1024.0]
+
+def test_name_prefixes_and_suffixes():
+    assert _v("ResNet-50") == [] and _v("v2.1") == [] and _v("Fig.3") == []
+    assert _v("5%x") == []

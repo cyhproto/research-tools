@@ -34,3 +34,86 @@ def test_tsv_and_last_row(tmp_path):
     root = tmp_path; (root / "r.tsv").write_text("run\tacc\nA\t0.5\nB\t0.7\n")
     log = root / "log.md"; log.write_text("x 70.0 [src: r.tsv | row=last | col=acc | scale=100]\n")
     assert verify_log(log, root)[0].status == "ok"
+
+
+import json
+import pytest
+from po.cli import main
+from po.sourcetags import Unreadable, parse_tags, resolve_src
+
+
+def one(tmp_path, line, files=None):
+    root = tmp_path
+    for name, content in (files or {}).items():
+        (root / name).write_text(content, encoding="utf-8")
+    log = root / "log.md"; log.write_text(line + "\n", encoding="utf-8")
+    return verify_log(log, root)
+
+
+CSV = {"r.csv": "run,a,b\nx,1,2\ny,3,4\n"}
+
+
+def test_calc_functions(tmp_path):
+    line = ("A 1.0 [src#p: r.csv | row=x | col=a] B 3.0 [src#q: r.csv | row=y | col=a]\n"
+            "pstd 1.0 [calc: pstd(p, q)]\nsub -2.0 [calc: sub(p, q)]\ndiv 0.33 [calc: div(p, q)]")
+    res = one(tmp_path, line, CSV)
+    assert [r.status for r in res] == ["ok"] * 5
+
+
+def test_calc_unreadable(tmp_path):
+    res = one(tmp_path, "A 1.0 [src#p: nope.csv | row=x | col=a]\nB 1.0 [calc: mean(p)]\nC 1.0 [calc: mean(zz)]")
+    assert [r.status for r in res] == ["unreadable"] * 3
+
+
+def test_unreadable_locators(tmp_path):
+    files = dict(CSV, **{"j.json": json.dumps({"a": [1]})})
+    lines = ("1.0 [src: r.csv | row=#9 | col=a]\n1.0 [src: r.csv | row=x | col=zz]\n"
+             "1.0 [src: j.json | path=a.5]\n1.0 [src: j.json | path=q.r]")
+    assert [r.status for r in one(tmp_path, lines, files)] == ["unreadable"] * 4
+
+
+def test_scale(tmp_path):
+    assert one(tmp_path, "x 10.0 [src: r.csv | row=x | col=a | scale=10]", CSV)[0].status == "ok"
+
+
+def test_pipe_without_spaces(tmp_path):
+    r = one(tmp_path, "1.0 [src: r.csv|row=x|col=a]", CSV)[0]
+    assert r.status == "unreadable" and r.reason == "fields must be separated by ' | ' (with spaces)"
+
+
+def test_pattern_with_bare_pipe(tmp_path):
+    r = one(tmp_path, "1.5 [src: t.txt | line=1 | pattern=(?:a|b)=([0-9.]+)]", {"t.txt": "b=1.5\n"})[0]
+    assert r.status == "ok"
+
+
+def test_unmatched_optional_group(tmp_path):
+    r = one(tmp_path, "1.0 [src: t.txt | line=1 | pattern=x(\\d)?y]", {"t.txt": "xy\n"})[0]
+    assert r.status == "unreadable" and "group" in r.reason
+
+
+def test_bom_and_blank_rows(tmp_path):
+    files = {"r.csv": "﻿run,a\nx,1\n\n,\ny,3\n\n"}
+    res = one(tmp_path, "1.0 [src: r.csv | row=x | col=a]\n3.0 [src: r.csv | row=#2 | col=a]\n"
+                        "3.0 [src: r.csv | row=last | col=a]", files)
+    assert [r.status for r in res] == ["ok"] * 3
+
+
+def test_invalid_utf8_log(tmp_path, capsys):
+    (tmp_path / "paper/materials").mkdir(parents=True)
+    (tmp_path / "paper/materials/experiment_log.md").write_bytes(b"\xff\xfe\xfa bad")
+    with pytest.raises(Unreadable):
+        verify_log(tmp_path / "paper/materials/experiment_log.md", tmp_path)
+    rc = main(["log", "verify", "--paper", str(tmp_path / "paper")])
+    assert rc == 2 and "UTF-8" in capsys.readouterr().out
+
+
+def test_cli_verify(tmp_path, capsys):
+    root, log = make(tmp_path)
+    rc = main(["log", "verify", "--paper", str(root / "paper")])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 1 and set(out) >= {"ok", "mismatch", "unreadable", "manual", "untagged", "items"}
+    assert out["mismatch"] == 1
+    log.write_text("x 87.3 [src: results/metrics.csv | row=seed_1 | col=val_acc | scale=100]\n")
+    rc = main(["log", "verify", "--paper", str(root / "paper"), "--project", str(root)])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0 and out["ok"] == 1
