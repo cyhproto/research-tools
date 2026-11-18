@@ -251,7 +251,9 @@ Every reviewer, meta-reviewer and reviser output file is a checkpoint, through i
 1. Delete `$PAPER/check/rulings.json` if present; old rulings could match new item ids.
 2. Run `$PO check run`. It writes `check/report.json` with counts of `fail`, `warn` and `needs_ruling`. Exit 2 means Check could not run, for example on an unreadable `references/library.json` or a style that is not found, and no report is left: show stderr, mark check failed and stop (§3).
 3. If `needs_ruling` > 0, dispatch `checker`.
-4. Run `$PO check finalize --rulings $PAPER/check/rulings.json`. Exit 0 means READY; 1 means NOT READY. If `rulings_missing` is true after the checker ran, re-dispatch the checker once and finalize again. Exit 2 means there is no report to finalize: it is missing, or `paper.md` changed after `check run` (stderr says which). Show stderr, mark check failed and stop; a new `/paper-orchestra check` makes a fresh report.
+4. Run `$PO check finalize --rulings $PAPER/check/rulings.json`. Exit 0 means READY; 1 means NOT READY. If `rulings_missing` is true after the checker ran, re-dispatch the checker once and finalize again. Exit 2 has two causes, and stderr says which:
+   - the rulings file is malformed ("rulings file … is not valid JSON" or "must hold a JSON object"): re-dispatch the checker once and finalize again; if it fails again, show stderr, mark check failed and stop;
+   - there is no report to finalize: it is missing, or `paper.md` changed after `check run`. Show stderr, mark check failed and stop; a new `/paper-orchestra check` makes a fresh report.
 5. Print `status_line`, then list the FAIL lines from `## Check` in `review.md`. Run `$PO state mark check done`.
 
 ## 10. Status and stale stages
