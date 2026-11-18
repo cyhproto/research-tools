@@ -93,3 +93,60 @@ def test_ids_and_cli(tmp_path, capsys):
     rf.write_text(json.dumps({i: {"ruling": "allow", "reason": "r", "arithmetic": None} for i in ids}))
     assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 0
     assert main(["check", "finalize", "--paper", str(p), "--rulings", str(tmp_path / "none.json")]) == 1
+
+
+STYLE_REQ = "required_statements:\n  - Data and code availability\n"
+
+def _req_setup(tmp_path, edit):
+    p, root = setup(tmp_path, edit)
+    st = (p / "style.md").read_text().replace("required_statements: []", STYLE_REQ.rstrip("\n"))
+    (p / "style.md").write_text(st)
+    return p, root
+
+def test_required_statement_matches_section_name(tmp_path):
+    p, root = _req_setup(tmp_path, lambda md: md.replace("## References", "## 7. Data and code availability\n\nAll public.\n\n## References"))
+    assert not fails(run_check(p, root), "venue")
+    p, root = _req_setup(tmp_path / "b", lambda md: md.replace("We evaluate on", "Data and code availability: none. We evaluate on"))
+    assert any("Data and code availability" in i.message for i in fails(run_check(p, root), "venue"))
+    p, root = _req_setup(tmp_path / "c", lambda md: md)
+    assert any("Data and code availability" in i.message for i in fails(run_check(p, root), "venue"))
+
+def test_missing_figures_link_target(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "![x](figures/ghost.png)\n![y](figures/ghost.png)\n\n```\n![z](figures/code.png)\n```\n\n## Conclusion"))
+    msgs = [i.message for i in fails(run_check(p, root), "figures")]
+    assert sum("ghost.png" in m for m in msgs) == 1 and not any("code.png" in m for m in msgs)
+
+def test_plural_and_range_references(tmp_path):
+    def edit(md):
+        md = md.replace("Figure 1 shows", "Figures 1 and 2 show")
+        return md.replace("## Conclusion", "*Figure 2: other.*\n\n*Figure 12: more.*\n\n*Table 3: t.*\n\n*Table 4: u.*\n\nSee Tables 2-4 and Fig 12.\n\n## Conclusion")
+    msgs = " ".join(i.message for i in fails(run_check(*setup(tmp_path, edit)), "figures"))
+    assert "Figure 2" not in msgs and "Figure 12" not in msgs and "Table 3" not in msgs and "Table 4" not in msgs
+    msgs = " ".join(i.message for i in fails(run_check(*setup(tmp_path / "b", lambda md: edit(md).replace("Fig 12", "Fig 120"))), "figures"))
+    assert "Figure 12 " in msgs + " "
+
+def test_caption_in_fence_and_references_ignored(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "```\n*Table 9: x.*\n```\n\n## Conclusion").replace("## References", "## References\n\nSee Table 9."))
+    assert not [i for i in fails(run_check(p, root), "figures")]
+    p, root = setup(tmp_path / "b", lambda md: md.replace("Figure 1 shows", "It shows").replace("## References", "## References\n\nSee Figure 1."))
+    assert any("Figure 1" in i.message for i in fails(run_check(p, root), "figures"))
+
+def test_author_whole_word_and_appendix(tmp_path):
+    p, root = setup(tmp_path)
+    (p / "settings.md").write_text("---\nstyle: ml-conference\ncutoff: 2025-06\nblind_review: true\nauthors: [Li]\n---\n")
+    assert not fails(run_check(p, root), "venue")
+    (p / "paper.md").write_text((p / "paper.md").read_text().replace("single benchmark", "single benchmark by Li"))
+    assert any("Li" in i.message for i in fails(run_check(p, root), "venue"))
+    (p / "style.md").write_text((p / "style.md").read_text().replace("[10, 2000]", "[10, 150]"))
+    (p / "paper.md").write_text((p / "paper.md").read_text().replace("by Li", "") + "\n## Appendix A\n\n" + "word " * 500)
+    assert not [i for i in fails(run_check(p, root), "venue") if "words" in i.message]
+
+def test_bad_ruling_values_and_multiline_reason(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "This improves by 2.3 points.\n\n## Conclusion"))
+    [i] = [i for i in run_check(p, root) if i.status == "needs_ruling"]
+    assert finalize(p, {i.id: "allow"})["problems"] == 1
+    finalize(p, {i.id: {"ruling": "fail", "reason": "x\n## Experiments\ny", "arithmetic": "a\n\nb"}})
+    text = (p / "review.md").read_text()
+    assert "## Experiments" not in text.replace("x ## Experiments y", "")
+    finalize(p, {})
+    assert text.count("## Check") == 1 == (p / "review.md").read_text().count("## Check")

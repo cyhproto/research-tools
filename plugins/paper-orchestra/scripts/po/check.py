@@ -23,7 +23,27 @@ _URL_RE = re.compile(r"<https?://[^>\s]*>|https?://\S+")
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _CAPTION_RE = re.compile(r"^\s*\*(Figure|Table)\s+(\d+)\s*:")
 _MERMAID_RE = re.compile(r"^ {0,3}```mermaid[^\n]*\n(.*?)^ {0,3}```", re.S | re.M)
+_SEP = r"(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*[\u2013\u2014-]\s*|\s+to\s+)"
+_REF_RE = re.compile(rf"\b(Figures?|Figs?\.?|Tables?)\s*(\d+(?:{_SEP}\d+)*)(?!\d)")
+_FIG_TARGET_RE = re.compile(r"\]\(\s*<?(figures/[^)\s>#]+)")
 _SENT_RE = re.compile(r"(?<!\bal\.)(?<!\be\.g\.)(?<!\bi\.e\.)(?<![A-Z]\.)(?<=[.!?])\s+(?=[A-Z\[(])")
+
+
+def _references(line: str) -> set[tuple[str, int]]:
+    """(kind, number) pairs referenced in a line, expanding lists and ranges."""
+    out = set()
+    for m in _REF_RE.finditer(line):
+        kind = "Table" if m.group(1).startswith("T") else "Figure"
+        nums = re.split(rf"({_SEP})", m.group(2))
+        vals = [int(x) for x in nums[0::2]]
+        seps = nums[1::2]
+        out.add((kind, vals[0]))
+        for k, sep in enumerate(seps):
+            a, b = vals[k], vals[k + 1]
+            if re.search(r"[\u2013\u2014-]|\bto\b", sep) and a < b <= a + 1000:
+                out.update((kind, v) for v in range(a, b + 1))
+            out.add((kind, b))
+    return out
 
 
 @dataclass
@@ -87,7 +107,7 @@ def _main_text(md: str) -> str:
     pre, secs = split_sections(md)
     keep = [pre]
     for s in secs:
-        if s.name in ("References", "Appendix"):
+        if s.name == "References" or s.name.startswith("Appendix"):
             break
         keep.append(s.heading + s.text)
     lines = LINE_RE.findall("".join(keep))
@@ -211,15 +231,24 @@ def _check_figures(md, paper_dir: Path, items: _Items) -> None:
             items.add("figures", "fail", None, f"figure file {f} is missing")
         if not _embedded(md, entry, paper_dir):
             items.add("figures", "fail", None, f"figure {entry.get('id')} ({f}) is never embedded in paper.md")
-    lines = md.splitlines()
-    for i, line in enumerate(lines, 1):
+    reported = {str(e.get("file", "")) for e in (info if isinstance(info, list) else [])}
+    lines = LINE_RE.findall(md)
+    for n, (line, tag) in enumerate(zip(lines, fence_tags(lines)), 1):
+        if tag is not None:
+            continue
+        for t in _FIG_TARGET_RE.findall(line):
+            if t not in reported and not (paper_dir / t).is_file():
+                reported.add(t)
+                items.add("figures", "fail", n, f"figure file {t} is missing")
+    prose = _prose_lines(md)
+    refs = {n: _references(l) for n, l in prose}
+    for i, line in prose:
         m = _CAPTION_RE.match(line)
         if not m:
             continue
-        kind, num = m.group(1), m.group(2)
-        pat = (r"\b(?:Figure|Fig\.)\s*" if kind == "Figure" else r"\bTable\s*") + num + r"(?!\d)"
+        kind, num = m.group(1), int(m.group(2))
         own = re.compile(rf"^\s*\*{kind}\s+{num}\s*:")
-        if not any(re.search(pat, l) for l in lines if not own.match(l)):
+        if not any((kind, num) in r for n, r in refs.items() if not own.match(dict(prose)[n])):
             items.add("figures", "fail", i, f"{kind} {num} is never referenced in the text")
 
 
@@ -228,11 +257,10 @@ def _check_venue(md, paper_dir, settings, items: _Items) -> None:
     _, secs = split_sections(md)
     have = {s.name.casefold() for s in secs}
     for name in style.sections:
-        if name.casefold() not in have:
+        if section_name(name).casefold() not in have:
             items.add("venue", "fail", None, f"missing section: {name}")
-    low = md.casefold()
     for st in style.required_statements:
-        if st.casefold() not in low:
+        if section_name(st).casefold() not in have:
             items.add("venue", "fail", None, f"missing required statement: {st}")
     words = len(_main_text(md).split())
     lo, hi = style.length_words
@@ -244,8 +272,9 @@ def _check_venue(md, paper_dir, settings, items: _Items) -> None:
                 items.add("venue", "fail", n, "email address in a blind-review paper")
             if re.match(r"^#{1,6}\s.*Acknowledg", line, re.I):
                 items.add("venue", "fail", n, "Acknowledgments heading in a blind-review paper")
+        for n, line in _prose_lines(md):
             for a in settings.authors:
-                if a and a.casefold() in line.casefold():
+                if a.strip() and re.search(rf"(?<!\w){re.escape(a.strip())}(?!\w)", line, re.I):
                     items.add("venue", "fail", n, f"author name {a} in a blind-review paper")
 
 
@@ -300,11 +329,12 @@ def _write_check_section(paper_dir: Path, body: str) -> None:
 
 def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
     items = _load_report(paper_dir)
-    rulings = rulings or {}
+    rulings = rulings if isinstance(rulings, dict) else {}
     problems, warns, allowed = [], [], []
     for i in items:
         if i.status == "needs_ruling":
-            r = rulings.get(i.id) or {}
+            r = rulings.get(i.id)
+            r = r if isinstance(r, dict) else {}
             if r.get("ruling") == "allow":
                 allowed.append((i, r))
             else:
@@ -317,8 +347,9 @@ def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
     def detail(r: dict) -> str:
         if not r:
             return ""
-        s = f" Ruling: {r.get('ruling')}. Reason: {r.get('reason') or 'none given'}."
-        return s + (f" Arithmetic: {r['arithmetic']}" if r.get("arithmetic") else "")
+        reason = _collapse(str(r.get("reason") or "")) or "none given"
+        s = f" Ruling: {_collapse(str(r.get('ruling')))}. Reason: {reason}."
+        return s + (f" Arithmetic: {_collapse(str(r['arithmetic']))}" if r.get("arithmetic") else "")
 
     status_line = "READY" if not problems else f"NOT READY: {len(problems)} problems"
     lines = [f"Status: {status_line}", ""]
