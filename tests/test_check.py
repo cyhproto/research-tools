@@ -353,3 +353,18 @@ def test_bare_keys_in_check(tmp_path):
     assert not [m for s, m in cit if s == "fail"]
     [w] = [m for s, m in cit if s == "warn" and "Someone2020" in m]
     assert "@Someone2020" in w and "Recall" not in " ".join(m for _, m in cit)
+
+
+# --- m11 / P37: one period at the end of each Check line ---------------------------------------
+
+def test_check_lines_end_in_one_period(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace(
+        "## Conclusion", "This improves by 2.3 points. We reach 99.9 on Y.\n\n## Conclusion") + "\nMy note.\n")
+    a, b = [i.id for i in run_check(p, root) if i.status == "needs_ruling"]
+    finalize(p, {a: {"ruling": "allow", "reason": "A difference.", "arithmetic": "87.3 - 85.0 = 2.3"},
+                 b: {"ruling": "fail", "reason": "Not in the materials!", "arithmetic": None}})
+    text = (p / "review.md").read_text()
+    lines = [l for l in text.splitlines() if l.startswith("- ")]
+    assert lines and all(l.endswith((".", "!", "?", "2.3")) for l in lines), lines
+    assert ".." not in text and "Reason: A difference. Arithmetic: 87.3 - 85.0 = 2.3" in text
+    assert "Reason: Not in the materials!" in text

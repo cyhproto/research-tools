@@ -417,6 +417,11 @@ def _where(i: CheckItem) -> str:
     return f"{i.id} (line {i.line})" if i.line is not None else i.id
 
 
+def _end(s: str) -> str:
+    """s as a sentence: a period added unless it already ends in . ! or ?"""
+    return s if s.endswith((".", "!", "?")) else s + "."
+
+
 def _write_check_section(paper_dir: Path, body: str) -> None:
     path = Path(paper_dir) / "review.md"
     section = "## Check\n\n" + body.strip("\n") + "\n"
@@ -453,19 +458,19 @@ def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
         if not r:
             return ""
         reason = _collapse(str(r.get("reason") or "")) or "none given"
-        s = f" Ruling: {_collapse(str(r.get('ruling')))}. Reason: {reason}."
+        s = f" Ruling: {_end(_collapse(str(r.get('ruling'))))} Reason: {_end(reason)}"
         return s + (f" Arithmetic: {_collapse(str(r['arithmetic']))}" if r.get("arithmetic") else "")
 
     status_line = "READY" if not problems else f"NOT READY: {len(problems)} problems"
     lines = [f"Status: {status_line}", ""]
     for i, r in problems:
-        lines.append(f"- FAIL {_where(i)}: {i.message}.{detail(r)}"
+        lines.append(f"- FAIL {_where(i)}: {_end(i.message)}{detail(r)}"
                      + (" No ruling." if i.status == "needs_ruling" and not r else ""))
-    lines += [f"- WARN {_where(i)}: {i.message}" for i in warns]
-    lines += [f"- ALLOWED {_where(i)}: {i.message}.{detail(r)}" for i, r in allowed]
+    lines += [f"- WARN {_where(i)}: {_end(i.message)}" for i in warns]
+    lines += [f"- ALLOWED {_where(i)}: {_end(i.message)}{detail(r)}" for i, r in allowed]
     if not (problems or warns or allowed):
         lines.append("No problems found.")
-    lines += [f"- PASS {_where(i)}: {i.message}." for i in passed]
+    lines += [f"- PASS {_where(i)}: {_end(i.message)}" for i in passed]
     _write_check_section(paper_dir, "\n".join(lines))
     return {"ready": not problems, "problems": len(problems), "status_line": status_line,
             "needs_ruling": sum(1 for i in items if i.status == "needs_ruling")}

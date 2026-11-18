@@ -3,6 +3,7 @@ import csv
 import json
 import math
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -356,12 +357,12 @@ def _cmd_verify(args) -> int:
     project = Path(args.project) if args.project else paper.resolve().parent
     log = paper / "materials" / "experiment_log.md"
     if not log.is_file():
-        emit({"error": f"missing {log}"})
+        print(f"missing {log}", file=sys.stderr)
         return 2
     try:
         text = _read_log(log)
     except (Unreadable, OSError) as e:
-        emit({"error": str(e)})
+        print(e, file=sys.stderr)
         return 2
     results = _verify_text(text, project)
     counts = summarize(results)

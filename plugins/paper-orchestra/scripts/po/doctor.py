@@ -49,7 +49,10 @@ def _cmd_doctor(args) -> int:
     project = Path(args.project).resolve() if args.project else paper.parent
     r = doctor(project, network=args.network)
     emit(r)
-    return 0 if r["python_ok"] else 2
+    if not r["python_ok"]:
+        print(f"Python 3.10 or newer is required; this is {r['python_version']}", file=sys.stderr)
+        return 2
+    return 0
 
 
 def register(sub) -> None:

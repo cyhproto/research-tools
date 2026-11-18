@@ -27,3 +27,25 @@ def test_doctor_network(tmp_path):
     assert ok.calls == ["Attention Is All You Need"]
     assert doctor(tmp_path, lookup=L(LookupOutcome(failed=True)), **kw)["network"] is False
     assert doctor(tmp_path, lookup=L(LookupOutcome()), **kw)["network"] is False
+
+
+def test_old_python_is_reported_on_stderr(monkeypatch, capsys):
+    import runpy
+    import sys
+    import pytest
+    monkeypatch.setattr(sys, "version_info", (3, 9, 6, "final", 0))
+    with pytest.raises(SystemExit) as e:
+        runpy.run_path("plugins/paper-orchestra/scripts/po.py", run_name="__main__")
+    cap = capsys.readouterr()
+    assert e.value.code == 2 and cap.out == "" and "3.10" in cap.err and "3.9.6" in cap.err
+
+
+def test_doctor_exit_2_says_why_on_stderr(monkeypatch, capsys):
+    import po.doctor as d
+    from po.cli import main
+    real = d.doctor
+    monkeypatch.setattr(d, "doctor", lambda project, network=False: real(
+        project, env={}, which=lambda c: None, probe=lambda c: False, python_version=(3, 9, 6)))
+    assert main(["doctor", "--paper", "paper"]) == 2
+    cap = capsys.readouterr()
+    assert json.loads(cap.out)["python_ok"] is False and "3.10" in cap.err

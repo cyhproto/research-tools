@@ -104,7 +104,12 @@ def test_invalid_utf8_log(tmp_path, capsys):
     with pytest.raises(Unreadable):
         verify_log(tmp_path / "paper/materials/experiment_log.md", tmp_path)
     rc = main(["log", "verify", "--paper", str(tmp_path / "paper")])
-    assert rc == 2 and "UTF-8" in capsys.readouterr().out
+    cap = capsys.readouterr()
+    assert rc == 2 and "UTF-8" in cap.err and cap.out == ""
+    (tmp_path / "paper/materials/experiment_log.md").unlink()
+    assert main(["log", "verify", "--paper", str(tmp_path / "paper")]) == 2
+    cap = capsys.readouterr()
+    assert "experiment_log.md" in cap.err and cap.out == ""
 
 
 def test_cli_verify(tmp_path, capsys):

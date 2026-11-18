@@ -2,8 +2,8 @@
 """Entry point for the paper-orchestra CLI."""
 import sys
 
-if sys.version_info < (3, 10):
-    print('{"error": "Python 3.10 or newer is required"}')
+if sys.version_info < (3, 10):  # keep this file readable by old Pythons, so they can say so
+    sys.stderr.write("Python 3.10 or newer is required; this is python3 %d.%d.%d\n" % tuple(sys.version_info[:3]))
     sys.exit(2)
 
 from pathlib import Path
