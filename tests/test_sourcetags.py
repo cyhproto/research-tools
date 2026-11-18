@@ -124,3 +124,29 @@ def test_mask_tags_hides_tag_numbers():
     from po.sourcetags import mask_tags
     text = "x 87.3 [src#a100: r.csv | row=#2 | col=a | scale=100]\ny 55.5 [manual: n 12.5]"
     assert [n.token for n in find_numbers(mask_tags(text))] == ["87.3", "55.5"]
+
+
+def test_calc_uses_ids_defined_later(tmp_path):
+    # templates/experiment_log.md and the drafter's M2 put the per-run values with ids in a
+    # final "## Source values" section, after the calc tags that use them
+    log = ("## Raw Numeric Data\nMean 2.0 [calc: mean(p, q)]\nGap 2.0 [calc: sub(q, p)]\n\n"
+           "## Source values\nA 1.0 [src#p: r.csv | row=x | col=a]\nB 3.0 [src#q: r.csv | row=y | col=a]")
+    res = one(tmp_path, log, CSV)
+    assert [r.status for r in res] == ["ok"] * 4
+    assert [r.tag.line_no for r in res] == [2, 3, 6, 7]
+
+
+def test_calc_later_id_mismatch_and_unreadable(tmp_path):
+    log = ("Mean 9.0 [calc: mean(p, q)]\nBad 1.0 [calc: sum(z)]\nNone 1.0 [calc: sum(m)]\n"
+           "A 1.0 [src#p: r.csv | row=x | col=a]\nB 3.0 [src#q: r.csv | row=y | col=a]\n"
+           "M 1.0 [src#m: missing.csv | row=x | col=a]")
+    res = one(tmp_path, log, CSV)
+    assert [r.status for r in res] == ["mismatch", "unreadable", "unreadable", "ok", "ok", "unreadable"]
+    assert "unknown id 'z'" in res[1].reason and "id 'm' is unreadable" in res[2].reason
+
+
+def test_calc_uses_the_closest_earlier_definition_of_a_repeated_id(tmp_path):
+    log = ("Early 1.0 [calc: sum(p)]\nP 1.0 [src#p: r.csv | row=x | col=a]\nSame 1.0 [calc: sum(p)]\n"
+           "P 3.0 [src#p: r.csv | row=y | col=a]\nLate 3.0 [calc: sum(p)]")
+    res = one(tmp_path, log, CSV)
+    assert [r.status for r in res] == ["ok"] * 5

@@ -284,24 +284,40 @@ def verify_log(log_path: Path, project_root: Path) -> list[TagResult]:
 
 
 def _verify_text(text: str, project_root: Path) -> list[TagResult]:
-    values: dict = {}
+    tags = parse_tags(text)
+    # Resolve every src tag first, so a calc may use ids defined later in the log (the
+    # template's per-run values sit in a final "## Source values" section).
+    src: dict[int, tuple[float | None, str | None]] = {}
+    defs: dict[str, list[int]] = {}
+    for i, tag in enumerate(tags):
+        if tag.kind != "src":
+            continue
+        try:
+            src[i] = (resolve_src(tag, Path(project_root)), None)
+        except Unreadable as e:
+            src[i] = (None, str(e))
+        if tag.id:
+            defs.setdefault(tag.id, []).append(i)
+
+    def ids_seen_from(i: int) -> dict:
+        """Each id's value for tag i: its closest definition before i, else its first after."""
+        return {k: src[max([j for j in js if j < i], default=js[0])][0] for k, js in defs.items()}
+
     results: list[TagResult] = []
-    for tag in parse_tags(text):
+    for i, tag in enumerate(tags):
         if tag.kind == "manual":
             results.append(TagResult(tag, "manual", None, tag.text or ""))
             continue
         try:
             if tag.kind == "src":
-                value = resolve_src(tag, Path(project_root))
+                value, err = src[i]
+                if err is not None:
+                    raise Unreadable(err)
             else:
-                value = _calc(tag, values)
+                value = _calc(tag, ids_seen_from(i))
         except Unreadable as e:
-            if tag.id:
-                values[tag.id] = None
             results.append(TagResult(tag, "unreadable", None, str(e)))
             continue
-        if tag.id:
-            values[tag.id] = value
         if tag.written is None:
             results.append(TagResult(tag, "unreadable", value, "no number before the tag"))
         elif values_match(tag.written.value, tag.written.decimals, value):

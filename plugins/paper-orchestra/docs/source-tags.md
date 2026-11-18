@@ -9,6 +9,7 @@ Every number in `materials/experiment_log.md` carries a tag that says where it c
 - `[src: <path> | line=<n>]` for any other text file, with an optional `| pattern=<regex with one group>`.
 - Any `src` tag may add `| scale=<number>`, and may carry an id: `[src#<id>: ...]`, where the id matches `[A-Za-z0-9_-]+`.
 - `[calc: <fn>(<id>, ...)]`, where `fn` is one of `mean`, `std` (sample, n-1), `pstd` (population), `min`, `max`, `sum`, `sub` (exactly 2 args), `div` (exactly 2 args). It works on the resolved, scaled source values of the ids.
+- A `calc` tag may use ids defined anywhere in the log, for example in a final `## Source values` section. If an id is defined twice, a `calc` uses its closest definition above it, or the first one below it when none is above.
 - `[manual: <free text>]`.
 - A tag applies to the closest non-tag number before it on the same line.
 
