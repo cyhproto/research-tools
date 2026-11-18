@@ -20,7 +20,7 @@ The command is `/paper-orchestra`. Claude Code resolves it to the plugin's skill
 ## Requirements
 
 - Claude Code, logged in with a Claude subscription, with web search available. You need no Anthropic API key and no other AI provider.
-- Python 3.10 or later. The scripts use only the standard library.
+- Python 3.10 or later, as the `python3` on your PATH: the tool runs its scripts with `python3`. The scripts use only the standard library. On macOS the system `python3` is 3.9, so install a newer one, for example with Homebrew (`brew install python`) or uv, and check that `python3 --version` shows 3.10 or later.
 - matplotlib in your project's Python environment, or [uv](https://docs.astral.sh/uv/). Only plot figures need it; the tool never installs anything.
 
 ## Optional keys
