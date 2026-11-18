@@ -267,3 +267,24 @@ def test_emptied_marker_pair_is_a_removal(tmp_path):
     assert main(["review", "render", "--paper", str(paper)]) == 0
     sec = _changes_section(paper)
     assert "paragraph removed" in sec and "After:" not in sec and "not decided yet" in sec
+
+
+# --- C2 / P31: protect with no tool version protects every paragraph -------------------------
+def test_protect_without_tool_version_protects_every_paragraph(tmp_path, capsys):
+    from po.state import get_protected
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "paper.md").write_text(PRE)
+    base = ["--paper", str(paper)]
+    assert main(["review", "protect", *base, "--out", str(paper / "drafts/marked_v0.md")]) == 0
+    assert json.loads(capsys.readouterr().out)["protected"] == 3
+    assert get_protected(paper) == ["Tool para one.", "My own words here.", "Tool para three."]
+    # keep mode keeps the user's text, and accepting the candidate keeps it the user's
+    marked = (paper / "drafts/marked_v0.md").read_text()
+    cand = paper / "drafts/candidate_v1.md"
+    cand.write_text(marked.replace("My own words here.", "Rewritten.") + "\nA reviser paragraph.\n")
+    assert main(["review", "restore", *base, "--candidate", str(cand), "--map",
+                 str(paper / "reviews/protected_v0.json"), "--pre", str(paper / "drafts/marked_v0.md")]) == 0
+    assert "My own words here." in cand.read_text() and "Rewritten." not in cand.read_text()
+    assert main(["paper", "accept", *base, "--from", str(cand)]) == 0
+    assert get_protected(paper) == ["Tool para one.", "My own words here.", "Tool para three."]

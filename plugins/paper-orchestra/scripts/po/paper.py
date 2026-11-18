@@ -301,6 +301,16 @@ def _tool_md(paper: Path) -> str | None:
     return _read(v) if v and v.is_file() else None
 
 
+def tool_baseline(paper: Path, current: str) -> str | None:
+    """The tool text that hand edits in `current` are measured against: the last tool version.
+
+    With none recorded (a paper.md the tool never wrote, or a lost .state.json), every paragraph of
+    a non-empty paper.md is the user's, so the baseline is "" (Ruling P31). An absent or empty
+    paper.md has nothing to protect: None, as on the first write."""
+    tool = _tool_md(paper)
+    return "" if tool is None and current.strip() else tool
+
+
 def _record_provenance(paper: Path, current: str, prev: str | None, new_md: str, prot: list[str]) -> None:
     """Remember hand-edited paragraphs before `new_md` becomes the tool version, so they stay protected."""
     from .state import set_protected
@@ -327,7 +337,7 @@ def _cmd_replace(args) -> int:
             print(f"{src} not found", file=sys.stderr)
         return 2
     current = _read_paper(paper, False)
-    prev, prot = _tool_md(paper), get_protected(paper)
+    prev, prot = tool_baseline(paper, current), get_protected(paper)
     try:
         merged, warns = replace_owned(current, _read(src), args.owner, style, only=args.only,
                                       tool_md=prev, force_sections=args.force or [], protected=prot)
@@ -376,7 +386,7 @@ def _cmd_accept(args) -> int:
         return 2
     new_md = _read(src)
     current = _read_paper(paper, False)
-    prev, prot = _tool_md(paper), get_protected(paper)
+    prev, prot = tool_baseline(paper, current), get_protected(paper)
     late = late_hand_edits(current, prev, prot, new_md)
     saved = _user_copy(paper, current) if late else None
     if late and not args.force:
@@ -397,7 +407,7 @@ def _cmd_edits(args) -> int:
     from .state import get_protected
     paper = Path(args.paper)
     current = _read_paper(paper, False)
-    tool = _tool_md(paper)
+    tool = tool_baseline(paper, current)
     if tool is None:
         emit({"sections": [], "paragraphs": 0})
     else:
@@ -442,7 +452,7 @@ def _cmd_save_version(args) -> int:
         return 2
     if args.kind == "tool":
         from .state import get_protected
-        _record_provenance(paper, current, _tool_md(paper), current, get_protected(paper))
+        _record_provenance(paper, current, tool_baseline(paper, current), current, get_protected(paper))
     emit({"version": str(save_version(paper, current, args.kind))})
     return 0
 

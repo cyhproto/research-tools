@@ -278,3 +278,72 @@ def test_references_file_rewrites_only_that_file(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out) | {"written": ""} == {"written": "", "kept": [], "warnings": []}
     assert _main(["paper", "references", "--paper", str(paper), "--file", str(paper / "nope.md")]) == 2
     assert "not found" in capsys.readouterr().err
+
+
+# --- C2 / P31: with no recorded tool version, an existing paper.md is the user's ----------
+USER_MD = "# My Paper\n\nMy lead.\n\n## Introduction\n\nMy intro.\n\n## Method\n\nMy method.\n"
+
+
+def test_existing_paper_md_is_the_users(tmp_path, capsys):
+    import json
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "paper.md").write_text(USER_MD)
+    base = ["--paper", str(paper)]
+    assert _main(["paper", "edits", *base]) == 0
+    assert json.loads(capsys.readouterr().out)["sections"] == ["Title", "Introduction", "Method"]
+    src = tmp_path / "lit.md"
+    src.write_text("## Introduction\n\nTool intro.\n\n## Related Work\n\nTool related.\n")
+    assert _main(["paper", "replace", *base, "--owner", "literature-writer", "--from", str(src)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Introduction"]}
+    assert (paper / "paper.md").read_text() == USER_MD
+    # keep theirs: only Related Work is written, and the user's text stays the user's
+    assert _main(["paper", "replace", *base, "--owner", "literature-writer", "--from", str(src),
+                  "--only", "Related Work"]) == 0
+    md = (paper / "paper.md").read_text()
+    assert "My intro." in md and "Tool related." in md and "Tool intro." not in md
+    capsys.readouterr()
+    src.write_text("## Method\n\nTool method.\n")
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Method"]}
+
+
+@pytest.mark.parametrize("lose", ["delete", "corrupt"])
+def test_lost_state_makes_earlier_tool_text_the_users(tmp_path, capsys, lose):
+    import json
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    base = ["--paper", str(paper)]
+    src = tmp_path / "w.md"
+    src.write_text("## Method\n\nTool method.\n\n## Experiments\n\nTool exp.\n")
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 0
+    if lose == "delete":
+        (paper / ".state.json").unlink()
+    else:
+        (paper / ".state.json").write_text("{not json")
+    capsys.readouterr()
+    assert _main(["paper", "replace", *base, "--owner", "section-writer", "--from", str(src)]) == 1
+    assert json.loads(capsys.readouterr().out) == {"conflict": ["Method", "Experiments"]}
+
+
+def test_save_version_without_tool_version_records_the_users_text(tmp_path, capsys):
+    import json
+    from po.state import get_protected
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "paper.md").write_text(USER_MD)
+    base = ["--paper", str(paper)]
+    assert _main(["paper", "save-version", *base, "--kind", "tool"]) == 0
+    assert set(get_protected(paper)) >= {"My lead.", "My intro.", "My method."}
+    capsys.readouterr()
+    assert _main(["paper", "edits", *base]) == 0
+    assert json.loads(capsys.readouterr().out)["sections"] == ["Title", "Introduction", "Method"]
+
+
+def test_first_write_into_an_empty_paper_md_has_no_conflict(tmp_path):
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    (paper / "paper.md").write_text("\n")
+    src = tmp_path / "w.md"
+    src.write_text("## Method\n\nTool method.\n")
+    assert _main(["paper", "replace", "--paper", str(paper), "--owner", "section-writer", "--from", str(src)]) == 0

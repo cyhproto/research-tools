@@ -16,7 +16,7 @@ You run a seven-stage pipeline that drafts a Markdown paper in `<project>/paper/
 2. Shell variables do not persist between Bash calls: write the absolute values into every command. Run every command from the project root, so the CLI's default `--paper paper` is `$PAPER`; never pass `--paper`. File arguments (`--from`, `--rulings`, `--candidate`, `--map`, `--pre`, `--out`) are always absolute `$PAPER/...` paths, because relative ones resolve against the cwd.
 3. Every `$PO` command prints one JSON object. Exit 0 = ok, 1 = problems (in the JSON), 2 = usage or config error (stderr says why). Show the user any `warnings` in that JSON. For example, `paper references` warns when text under `## References` is not a reference entry: it keeps that text after the list and asks the user to give it its own heading.
 4. Run `$PO doctor`. If it exits 2 or `python_ok` is false, say that Python 3.10 or newer is required and stop. Otherwise show `problems` and `next_steps` once; they do not block (a missing plot Python only stops figure building).
-5. Run `$PO state show`: each stage's status (`pending`, `running`, `done`, `failed`), `stale`, `tasks_done`, `next_stage`, `warnings`. Show any warnings.
+5. Run `$PO state show`: each stage's status (`pending`, `running`, `done`, `failed`), `stale`, `tasks_done`, `next_stage`, `warnings`. Show any warnings. If one says `.state.json` was unreadable and moved aside, also tell the user what that costs: the record of which text the tool wrote is gone, so all of `paper.md`, earlier tool text included, now counts as their own, and the next write or lit-review asks per section before replacing any of it.
 
 ## 2. Arguments
 
@@ -78,6 +78,8 @@ The clean-up moves the stage's old outputs into `$PAPER/old/<stage>-<stamp>/`; n
 - A stopped stage or branch is marked failed, never done.
 
 ## 4. Gather
+
+**Existing folder.** Before `$PO state mark gather running` (§3), which creates `$PAPER/.state.json`: if that file does not exist but `$PAPER` already holds files (`paper.md` or anything else; list them with `ls -A $PAPER`), say so and name them. Say that an existing `paper.md` will be treated as the user's own text: a write or lit-review asks per section before replacing any section of it (§6, **Hand-edit conflicts**); only the reference entries under `## References` are rebuilt from the library, as always. Ask whether to continue with this folder. End your turn and wait for the user.
 
 1. **Settings.** If `$PAPER/settings.md` is missing, ask once for:
    - the style: `ml-conference` (default), `journal`, or your own `paper/style.md`;

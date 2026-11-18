@@ -23,7 +23,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from .cli import common_parent, emit
-from .paper import _collapse, _read, _tool_md, _write, paragraphs, split_sections, assemble
+from .paper import _collapse, _read, _write, assemble, paragraphs, split_sections, tool_baseline
 from .state import get_protected, set_protected
 
 SCORE_FIELDS = {"Originality": (1, 4), "Quality": (1, 4), "Clarity": (1, 4), "Significance": (1, 4),
@@ -100,8 +100,10 @@ def decide(old: dict, new: dict) -> dict:
 # ---- protection ----------------------------------------------------------
 
 def protected_set(current_md: str, tool_md: str | None, previous: list[str]) -> list[str]:
+    """Hand-edited paragraphs (vs tool_md; "" makes every paragraph the user's), plus the
+    previously protected ones still present. tool_md None detects nothing new."""
     from .paper import hand_edited_paragraphs
-    edited = hand_edited_paragraphs(current_md, tool_md) if tool_md else []
+    edited = hand_edited_paragraphs(current_md, tool_md) if tool_md is not None else []
     present = {_collapse(p): p for p in paragraphs(current_md)}
     out, seen = [], set()
     for p in list(edited) + [present[_collapse(q)] for q in previous if _collapse(q) in present]:
@@ -418,7 +420,7 @@ def _cmd_protect(args) -> int:
         print(f"{pm} not found", file=sys.stderr)
         return 2
     md = _read(pm)
-    prot = protected_set(md, _tool_md(paper), get_protected(paper))
+    prot = protected_set(md, tool_baseline(paper, md), get_protected(paper))
     marked, originals = protect(md, prot)
     out.parent.mkdir(parents=True, exist_ok=True)
     _write(out, marked)
