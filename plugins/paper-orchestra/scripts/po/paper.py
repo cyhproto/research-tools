@@ -1,5 +1,4 @@
 """paper.md sections, ownership, hand-edit detection and versioned drafts."""
-import json
 import re
 import sys
 from collections.abc import Sequence
@@ -8,10 +7,12 @@ from pathlib import Path
 
 from .cli import common_parent, emit
 
-FENCE_RE = re.compile(r"^\s*(```|~~~)")
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 H2_RE = re.compile(r"^## +(.*?)\s*$")
 ANY_HEADING_RE = re.compile(r"^#{1,6}\s")
 NUMBERING_RE = re.compile(r"^\d+(\.\d+)*\.?\s+")
+LINE_RE = re.compile(r"[^\n]*\n|[^\n]+")
+BLANK_END_RE = re.compile(r"\n[ \t]*\r?\n\Z")
 TITLE = "Title"
 
 
@@ -28,28 +29,59 @@ class HandEditConflict(Exception):
         self.sections = sections
 
 
+def fence_tags(lines: list[str]) -> list[str | None]:
+    """Per line: 'open', 'in', 'close' for fenced code (CommonMark rules), else None.
+
+    A closing fence uses the opening character and is at least as long; an
+    unclosed fence runs to the end of the text."""
+    tags: list[str | None] = []
+    ch, size = None, 0
+    for line in lines:
+        m = FENCE_OPEN_RE.match(line.rstrip("\r\n"))
+        if ch is None:
+            if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+                ch, size = m.group(1)[0], len(m.group(1))
+                tags.append("open")
+            else:
+                tags.append(None)
+        elif m and m.group(1)[0] == ch and len(m.group(1)) >= size and not m.group(2).strip():
+            tags.append("close")
+            ch = None
+        else:
+            tags.append("in")
+    return tags
+
+
+def detect_eol(md: str) -> str:
+    return "\r\n" if "\r\n" in md else "\n"
+
+
+def ensure_blank(text: str, eol: str) -> str:
+    """Make text end with a blank line; text that already does is returned unchanged."""
+    if not text or BLANK_END_RE.search(text):
+        return text
+    return text.rstrip("\r\n") + eol * 2
+
+
 def section_name(heading: str) -> str:
     return NUMBERING_RE.sub("", heading.strip())
 
 
 def split_sections(md: str) -> tuple[str, list[Section]]:
+    lines = LINE_RE.findall(md)
     pre: list[str] = []
     heads: list[tuple[str, list[str]]] = []
-    in_fence = False
-    for line in md.splitlines(keepends=True):
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
-        m = None if in_fence or FENCE_RE.match(line) else H2_RE.match(line.rstrip("\r\n"))
-        if m:
+    for line, tag in zip(lines, fence_tags(lines)):
+        if tag is None and H2_RE.match(line.rstrip("\r\n")):
             heads.append((line, [line]))
         elif heads:
             heads[-1][1].append(line)
         else:
             pre.append(line)
     sections = []
-    for line, lines in heads:
+    for line, body in heads:
         bare = line.rstrip("\r\n")
-        sections.append(Section(bare, section_name(H2_RE.match(bare).group(1)), "".join(lines)[len(bare):]))
+        sections.append(Section(bare, section_name(H2_RE.match(bare).group(1)), "".join(body)[len(bare):]))
     return "".join(pre), sections
 
 
@@ -73,26 +105,23 @@ def _collapse(s: str) -> str:
 def paragraphs(md: str) -> list[str]:
     out: list[str] = []
     cur: list[str] = []
-    in_fence = False
 
     def flush():
         if cur:
             out.append("\n".join(cur))
             cur.clear()
 
-    for line in md.splitlines():
-        if FENCE_RE.match(line):
-            if not in_fence:
-                flush()
-            cur.append(line)
-            if in_fence:
-                flush()
-            in_fence = not in_fence
-        elif in_fence:
-            cur.append(line)
-        elif ANY_HEADING_RE.match(line):
+    lines = [l.rstrip("\r") for l in md.split("\n")]
+    for line, tag in zip(lines, fence_tags(lines)):
+        if tag == "open":
             flush()
-        elif not line.strip():
+            cur.append(line)
+        elif tag == "in":
+            cur.append(line)
+        elif tag == "close":
+            cur.append(line)
+            flush()
+        elif ANY_HEADING_RE.match(line) or not line.strip():
             flush()
         else:
             cur.append(line)
@@ -105,19 +134,27 @@ def _without_references(md: str) -> str:
     return assemble(pre, [s for s in secs if s.name != "References"])
 
 
-def hand_edited_paragraphs(current_md: str, tool_md: str) -> list[str]:
-    known = {_collapse(p) for p in paragraphs(tool_md)}
-    return [p for p in paragraphs(_without_references(current_md)) if _collapse(p) not in known]
+def _is_edited(p: str, known: set[str], prot: set[str]) -> bool:
+    c = _collapse(p)
+    return c not in known or c in prot
 
 
-def sections_with_hand_edits(current_md: str, tool_md: str) -> list[str]:
+def hand_edited_paragraphs(current_md: str, tool_md: str, protected: Sequence[str] = ()) -> list[str]:
     known = {_collapse(p) for p in paragraphs(tool_md)}
+    prot = {_collapse(p) for p in protected}
+    return [p for p in paragraphs(_without_references(current_md)) if _is_edited(p, known, prot)]
+
+
+def sections_with_hand_edits(current_md: str, tool_md: str, protected: Sequence[str] = ()) -> list[str]:
+    known = {_collapse(p) for p in paragraphs(tool_md)}
+    prot = {_collapse(p) for p in protected}
     pre, secs = split_sections(current_md)
-    out = []
-    if any(_collapse(p) not in known for p in paragraphs(pre)):
+    out: list[str] = []
+    if any(_is_edited(p, known, prot) for p in paragraphs(pre)):
         out.append(TITLE)
     for s in secs:
-        if s.name != "References" and any(_collapse(p) not in known for p in paragraphs(s.text)):
+        if s.name != "References" and s.name not in out and any(
+                _is_edited(p, known, prot) for p in paragraphs(s.text)):
             out.append(s.name)
     return out
 
@@ -128,64 +165,86 @@ def _order(style) -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def _tidy(text: str, last: bool) -> str:
-    return text.rstrip("\n") + ("\n" if last else "\n\n")
+def _insert_pos(merged: list[Section], name: str, order: list[str]) -> int:
+    tail = next((i for i, c in enumerate(merged) if c.name in ("References", "Appendix")), len(merged))
+    if name not in order:
+        return tail
+    r = order.index(name)
+    ranked = [(order.index(c.name), i) for i, c in enumerate(merged) if c.name in order]
+    before = [(rk, i) for rk, i in ranked if rk < r]
+    if before:
+        best = max(rk for rk, _ in before)
+        return min(i for rk, i in before if rk == best) + 1
+    after = [i for rk, i in ranked if rk > r]
+    return min(after) if after else tail
+
+
+def _convert(s: Section, eol: str) -> Section:
+    text = s.text.replace("\r\n", "\n")
+    return Section(s.heading.rstrip("\r\n"), s.name, text.replace("\n", eol) if eol != "\n" else text)
+
+
+def _tidy(text: str, last: bool, eol: str) -> str:
+    return text.rstrip("\r\n") + eol * (1 if last else 2)
 
 
 def replace_owned(current_md: str, new_md: str, owner: str, style, only: list[str] | None = None,
-                  tool_md: str | None = None, force_sections: Sequence[str] = ()) -> tuple[str, list[str]]:
+                  tool_md: str | None = None, force_sections: Sequence[str] = (),
+                  protected: Sequence[str] = ()) -> tuple[str, list[str]]:
     warnings: list[str] = []
-    cur_pre, cur = split_sections(current_md)
+    eol = detect_eol(current_md)
+    preamble, cur = split_sections(current_md)
     new_pre, new = split_sections(new_md)
     only_set = None if only is None else {section_name(o) for o in only}
     force = {section_name(f) for f in force_sections}
+    title_owner = owner_of(TITLE, style)
 
     wanted: list[Section] = []
     for s in new:
         o = owner_of(s.name, style)
         if o != owner:
             warnings.append(f"ignored section {s.name}: owned by {o}, not {owner}")
-        elif only_set is None or s.name in only_set:
-            wanted.append(s)
-    replace_title = (owner == owner_of(TITLE, style) and bool(new_pre.strip())
-                     and (only_set is None or TITLE in only_set))
+        elif (only_set is None or s.name in only_set) and all(w.name != s.name for w in wanted):
+            wanted.append(_convert(s, eol))
+    replace_title = False
+    if new_pre.strip():
+        if owner != title_owner:
+            warnings.append(f"ignored title and preamble: owned by {title_owner}, not {owner}")
+        else:
+            replace_title = only_set is None or TITLE in only_set
 
     if tool_md is not None:
-        edited = set(sections_with_hand_edits(current_md, tool_md))
+        edited = set(sections_with_hand_edits(current_md, tool_md, protected))
         targets = {s.name for s in wanted if any(c.name == s.name for c in cur)}
         if replace_title:
             targets.add(TITLE)
-        conflict = [n for n in ([TITLE] + [c.name for c in cur])
+        conflict = [n for n in dict.fromkeys([TITLE] + [c.name for c in cur])
                     if n in targets and n in edited and n not in force]
         if conflict:
             raise HandEditConflict(conflict)
 
-    preamble = cur_pre
-    if replace_title:
-        preamble = new_pre.rstrip("\n") + "\n\n" if cur or wanted else new_pre
-    touched: set[str] = set()
-    order = _order(style)
-    unknown_rank = order.index("References") - 0.5
-
-    def rank(n: str) -> float:
-        return order.index(n) if n in order else unknown_rank
-
     merged = list(cur)
     for s in wanted:
-        touched.add(s.name)
         idx = next((i for i, c in enumerate(merged) if c.name == s.name), None)
         if idx is not None:
             merged[idx] = s
-            continue
-        pos = next((i for i, c in enumerate(merged) if rank(c.name) > rank(s.name)), len(merged))
-        merged.insert(pos, s)
+        else:
+            merged.insert(_insert_pos(merged, s.name, _order(style)), s)
+    touched = {id(s) for s in wanted}
+
+    if replace_title:
+        preamble = new_pre.replace("\r\n", "\n").replace("\n", eol)
+        preamble = ensure_blank(preamble, eol) if merged else preamble.rstrip("\r\n") + eol
+    out: list[Section] = []
     for i, s in enumerate(merged):
-        prev_touched = i > 0 and merged[i - 1].name in touched
-        if s.name in touched or prev_touched:
-            merged[i] = Section(s.heading, s.name, _tidy(s.text, i == len(merged) - 1))
-    if merged and preamble and not preamble.endswith("\n\n") and (merged[0].name in touched):
-        preamble = preamble.rstrip("\n") + "\n\n"
-    return assemble(preamble, merged), warnings
+        if id(s) in touched:
+            if out:
+                out[-1] = Section(out[-1].heading, out[-1].name, ensure_blank(out[-1].text, eol))
+            else:
+                preamble = ensure_blank(preamble, eol)
+            s = Section(s.heading, s.name, _tidy(s.text, i == len(merged) - 1, eol))
+        out.append(s)
+    return assemble(preamble, out), warnings
 
 
 def save_version(paper_dir, md: str, kind: str = "tool") -> Path:
@@ -197,7 +256,7 @@ def save_version(paper_dir, md: str, kind: str = "tool") -> Path:
     n = max(nums, default=0) + 1
     name = f"v{n}.md" if kind == "tool" else f"v{n}-user.md"
     path = drafts / name
-    path.write_text(md, encoding="utf-8")
+    _write(path, md)
     if kind == "tool":
         record_tool_version(paper_dir, f"drafts/{name}")
     return path
@@ -216,10 +275,20 @@ def _style(args):
         return None
 
 
+def _read(p: Path) -> str:
+    with open(p, encoding="utf-8", newline="") as f:
+        return f.read()
+
+
+def _write(p: Path, text: str) -> None:
+    with open(p, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+
 def _read_paper(paper: Path, required: bool) -> str | None:
     p = paper / "paper.md"
     if p.is_file():
-        return p.read_text(encoding="utf-8")
+        return _read(p)
     if required:
         print(f"{p} not found", file=sys.stderr)
         return None
@@ -229,10 +298,27 @@ def _read_paper(paper: Path, required: bool) -> str | None:
 def _tool_md(paper: Path) -> str | None:
     from .state import last_tool_version
     v = last_tool_version(paper)
-    return v.read_text(encoding="utf-8") if v and v.is_file() else None
+    return _read(v) if v and v.is_file() else None
+
+
+def _record_provenance(paper: Path, current: str, prev: str | None, new_md: str, prot: list[str]) -> None:
+    """Remember hand-edited paragraphs before `new_md` becomes the tool version, so they stay protected."""
+    from .state import set_protected
+    keep = list(prot)
+    if prev is not None:
+        keep += hand_edited_paragraphs(current, prev, prot)
+    present = {_collapse(p) for p in paragraphs(new_md)}
+    out, seen = [], set()
+    for p in keep:
+        c = _collapse(p)
+        if c in present and c not in seen:
+            seen.add(c)
+            out.append(p)
+    set_protected(paper, out)
 
 
 def _cmd_replace(args) -> int:
+    from .state import get_protected
     paper = Path(args.paper)
     style = _style(args)
     src = Path(args.src)
@@ -241,30 +327,32 @@ def _cmd_replace(args) -> int:
             print(f"{src} not found", file=sys.stderr)
         return 2
     current = _read_paper(paper, False)
+    prev, prot = _tool_md(paper), get_protected(paper)
     try:
-        merged, warns = replace_owned(current, src.read_text(encoding="utf-8"), args.owner, style,
-                                      only=args.only, tool_md=_tool_md(paper), force_sections=args.force or [])
+        merged, warns = replace_owned(current, _read(src), args.owner, style, only=args.only,
+                                      tool_md=prev, force_sections=args.force or [], protected=prot)
     except HandEditConflict as e:
         emit({"conflict": e.sections})
         return 1
     paper.mkdir(parents=True, exist_ok=True)
-    (paper / "paper.md").write_text(merged, encoding="utf-8")
+    _write(paper / "paper.md", merged)
+    _record_provenance(paper, current, prev, merged, prot)
     v = save_version(paper, merged, "tool")
     emit({"written": str(paper / "paper.md"), "version": str(v), "warnings": warns})
     return 0
 
 
 def _cmd_edits(args) -> int:
+    from .state import get_protected
     paper = Path(args.paper)
-    if _style(args) is None:
-        return 2
     current = _read_paper(paper, False)
     tool = _tool_md(paper)
     if tool is None:
         emit({"sections": [], "paragraphs": 0})
     else:
-        emit({"sections": sections_with_hand_edits(current, tool),
-              "paragraphs": len(hand_edited_paragraphs(current, tool))})
+        prot = get_protected(paper)
+        emit({"sections": sections_with_hand_edits(current, tool, prot),
+              "paragraphs": len(hand_edited_paragraphs(current, tool, prot))})
     return 0
 
 
@@ -277,7 +365,7 @@ def _cmd_references(args) -> int:
     if style is None or current is None:
         return 2
     entries = {e.key: e for e in load_library(paper)}
-    (paper / "paper.md").write_text(update_references(current, entries, style.citation_style), encoding="utf-8")
+    _write(paper / "paper.md", update_references(current, entries, style.citation_style))
     emit({"written": str(paper / "paper.md")})
     return 0
 
@@ -287,6 +375,9 @@ def _cmd_save_version(args) -> int:
     current = _read_paper(paper, True)
     if current is None:
         return 2
+    if args.kind == "tool":
+        from .state import get_protected
+        _record_provenance(paper, current, _tool_md(paper), current, get_protected(paper))
     emit({"version": str(save_version(paper, current, args.kind))})
     return 0
 

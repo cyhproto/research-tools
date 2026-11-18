@@ -1,11 +1,12 @@
 """Citation keys in paper.md and the generated References section."""
 import re
 
-from .paper import FENCE_RE, Section, assemble, split_sections
+from .paper import Section, assemble, detect_eol, ensure_blank, fence_tags, split_sections
 
 BRACKET_RE = re.compile(r"\[([^\[\]]*@[^\[\]]*)\]")
 KEY_RE = re.compile(r"(?<![\w@])@(\w(?:[\w:.\-]*\w)?)")
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+DOI_PREFIX_RE = re.compile(r"^(https?://(dx\.)?doi\.org/|doi:\s*)", re.I)
 MAX_AUTHORS = 6
 
 
@@ -13,13 +14,8 @@ def _prose(md: str) -> str:
     """md without fenced blocks, inline code and the References section."""
     pre, secs = split_sections(md)
     text = assemble(pre, [s for s in secs if s.name != "References"])
-    out, in_fence = [], False
-    for line in text.splitlines():
-        if FENCE_RE.match(line):
-            in_fence = not in_fence
-        elif not in_fence:
-            out.append(INLINE_CODE_RE.sub("", line))
-    return "\n".join(out)
+    lines = text.splitlines()
+    return "\n".join(INLINE_CODE_RE.sub("", l) for l, t in zip(lines, fence_tags(lines)) if t is None)
 
 
 def cited_keys(md: str) -> list[str]:
@@ -42,8 +38,9 @@ def _line(e) -> str:
     parts = [f"- [@{e.key}]", head, f"({year}).", title]
     if where:
         parts.append(where + ".")
-    if e.doi:
-        parts.append(f"https://doi.org/{e.doi}")
+    doi = DOI_PREFIX_RE.sub("", (e.doi or "").strip())
+    if doi:
+        parts.append(f"https://doi.org/{doi}")
     return " ".join(p for p in parts if p)
 
 
@@ -56,14 +53,16 @@ def render_references(entries: dict, cited: list[str], citation_style: str) -> s
 
 
 def update_references(md: str, entries: dict, citation_style: str) -> str:
+    eol = detect_eol(md)
     block = render_references(entries, cited_keys(md), citation_style)
     pre, secs = split_sections(md)
     secs = [s for s in secs if s.name != "References"]
-    ref = Section("## References", "References", block[len("## References"):])
+    body = block[len("## References"):].replace("\n", eol)
     pos = next((i for i, s in enumerate(secs) if s.name == "Appendix"), len(secs))
+    ref = Section("## References", "References", body.rstrip("\r\n") + eol * (1 if pos == len(secs) else 2))
+    if pos:
+        secs[pos - 1] = Section(secs[pos - 1].heading, secs[pos - 1].name, ensure_blank(secs[pos - 1].text, eol))
+    else:
+        pre = ensure_blank(pre, eol)
     secs.insert(pos, ref)
-    secs = [Section(s.heading, s.name, s.text.rstrip("\n") + ("\n" if i == len(secs) - 1 else "\n\n"))
-            for i, s in enumerate(secs)]
-    if pre and not pre.endswith("\n\n"):
-        pre = pre.rstrip("\n") + "\n\n"
     return assemble(pre, secs)
