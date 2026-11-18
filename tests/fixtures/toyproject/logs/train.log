@@ -1,0 +1,3 @@
+epoch 1 val_loss=0.9012 lr=0.001
+epoch 5 val_loss=0.5120 lr=0.001
+epoch 10 val_loss=0.4123 lr=0.001
