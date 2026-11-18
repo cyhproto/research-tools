@@ -66,7 +66,7 @@ Options:
 - `--hand-edits keep|revise`: how the review treats paragraphs you edited, for this review only.
 - `write --only "<Section>" ["<Section>" ...]`: rewrite only the named sections, for example `write --only "Experiments"` after new results.
 
-Gather asks once for the style (`ml-conference`, `journal`, or your own `paper/style.md`), the cutoff month, blind review, language and author names. Say "defaults" to accept them. Blind review defaults to the style's setting: on for `ml-conference`, off for `journal`.
+Gather asks once for the style (`ml-conference`, `journal`, or your own `paper/style.md`), the cutoff month, blind review, language and author names. Say "defaults" to accept them. Blind review defaults to the style's setting: on for `ml-conference`, off for `journal`. For your own style, copy `ml-conference.md` or `journal.md` from the plugin's [`styles/`](styles/) folder (`plugins/paper-orchestra/styles/` in the research-tools repository; an installed copy is under `~/.claude/plugins/cache/research-tools/paper-orchestra/<version>/styles/`) to `paper/style.md` and edit it: it must keep `sections` and `length_words`.
 
 With the `journal` style, Check says NOT READY until you add the two statements the style requires, "Data and code availability" and "Declaration of competing interests", each as a `##` section before References. No agent writes them, because only you know what they must say.
 

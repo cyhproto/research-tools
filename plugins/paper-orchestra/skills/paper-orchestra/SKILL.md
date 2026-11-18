@@ -86,7 +86,9 @@ With the first two, `refs verify` re-checks the kept entries against the current
 
 ## 4. Gather
 
-**Existing folder.** Before `$PO state mark gather running` (§3), which creates `$PAPER/.state.json`: if that file does not exist but `$PAPER` already holds files (`paper.md` or anything else; list them with `ls -A $PAPER`), say so and name them. Say that an existing `paper.md` will be treated as the user's own text: a write or lit-review asks per section before replacing any section of it (§6, **Hand-edit conflicts**); only the reference entries under `## References` are rebuilt from the library, as always. Ask whether to continue with this folder. End your turn and wait for the user.
+**Existing folder.** Before `$PO state mark gather running` (§3), which creates `$PAPER/.state.json`: if that file does not exist and `$PAPER` does, list it with `ls -A $PAPER`. The tool's own names never count here: `settings.md`, `style.md`, `materials/` (the user's exports in `materials/references/` included), `paper.md`, `outline.json`, `outline.md`, `references/`, `figures/`, `drafts/`, `reviews/`, `check/`, `review.md`, `.tmp/`, `old/`, state files moved aside (`.state.json.*`), and editor or system files such as `.obsidian/` and `.DS_Store`.
+- If any other name is there (for example `main.tex` or `sections/`), say that the folder looks like an existing paper folder, and name those files. Say that an existing `paper.md` will be treated as the user's own text: a write or lit-review asks per section before replacing any section of it (§6, **Hand-edit conflicts**); only the reference entries under `## References` are rebuilt from the library, as always. Ask whether to continue with this folder. End your turn and wait for the user.
+- Otherwise, if `paper.md` exists, say in one line that it is treated as the user's own text and that write and lit-review ask per section before replacing any of it. Then continue without waiting.
 
 1. **Settings.** If `$PAPER/settings.md` is missing, ask once for:
    - the style: `ml-conference` (default), `journal`, or your own `paper/style.md`;
