@@ -45,7 +45,8 @@ class LookupOutcome:
 
 
 def normalize_title(t: str) -> str:
-    return re.sub(r"[^a-z0-9]", "", (t or "").lower())
+    folded = unicodedata.normalize("NFKC", t or "").casefold()
+    return "".join(c for c in folded if c.isalnum()) or folded.strip()
 
 
 def title_score(query: str, candidate: str, query_year: int | None, cand_year: int | None) -> float:
@@ -170,8 +171,16 @@ class Lookup:
             return
         cache = self._load_cache()
         cache[key] = [asdict(r) for r in records]
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+        tmp = self.cache_path.with_name(self.cache_path.name + ".tmp")
+        try:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, self.cache_path)
+        except OSError:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
     # -- requests ----------------------------------------------------------
     def _wait(self, service: str) -> None:
@@ -232,6 +241,8 @@ class Lookup:
 
     def openalex_doi(self, doi: str) -> LookupOutcome:
         d = normalize_doi(doi) or doi
+        if "," in d or "|" in d:  # OpenAlex reads these as filter separators
+            return LookupOutcome([], False)
         return self._openalex("openalex-doi", d, "doi:" + d)
 
     @staticmethod
@@ -306,8 +317,13 @@ class Lookup:
                 continue
             authors = [" ".join(x for x in (a.get("given"), a.get("family")) if x) or a.get("name", "")
                        for a in it.get("author") or []]
-            parts = ((it.get("issued") or {}).get("date-parts") or [[]])[0]
-            year = _int(parts[0]) if parts else None
+            raw = ((it.get("issued") or {}).get("date-parts") or [[]])[0] or []
+            parts = []
+            for x in raw:
+                if not _int(x):
+                    break
+                parts.append(x)
+            year = parts[0] if parts else None
             date = "-".join([f"{parts[0]:04d}"] + [f"{p:02d}" for p in parts[1:3]]) if year else None
             cont = it.get("container-title") or []
             venue = _str(cont[0]) if cont else None

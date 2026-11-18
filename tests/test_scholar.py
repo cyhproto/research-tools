@@ -83,3 +83,26 @@ def test_success_cached_including_empty(tmp_path):
     mk = lambda: Lookup(fetch_json=lambda u, p, h: calls.append(1) or {"results": []}, sleep=lambda s: None, cache_path=tmp_path / "c.json")
     mk().openalex_title("Some, Title!"); mk().openalex_title("some title")
     assert calls == [1]
+
+# --- review fixes ---
+def test_normalize_title_unicode():
+    assert normalize_title("Attention Is All You Need!") == "attentionisallyouneed"
+    a, b, c = normalize_title("딥러닝 연구"), normalize_title("Глубокое обучение"), normalize_title("机器学习")
+    assert a and b and c and len({a, b, c}) == 3
+
+def test_openalex_doi_with_separator_skipped():
+    called = []
+    lk = Lookup(fetch_json=lambda *a: called.append(1), sleep=lambda s: None)
+    assert lk.openalex_doi("10.1/a,b") == LookupOutcome([], False)
+    assert lk.openalex_doi("10.1/a|b") == LookupOutcome([], False) and called == []
+
+def test_unwritable_cache_does_not_crash(tmp_path):
+    blocker = tmp_path / "file"; blocker.write_text("x")
+    lk = Lookup(fetch_json=lambda u, p, h: FX("openalex_attention.json"), sleep=lambda s: None, cache_path=blocker / "c.json")
+    out = lk.openalex_title("Attention Is All You Need")
+    assert not out.failed and out.records
+
+def test_crossref_null_date_part():
+    d = FX("crossref_resnet.json"); d["message"]["items"][0]["issued"] = {"date-parts": [[2016, None]]}
+    out = Lookup(fetch_json=lambda u, p, h: d, sleep=lambda s: None).crossref_title("x")
+    assert not out.failed and (out.records[0].year, out.records[0].publication_date) == (2016, "2016")
