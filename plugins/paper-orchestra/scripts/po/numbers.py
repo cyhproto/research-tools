@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from .numtok import Num, find_numbers, is_trivial, values_match
 from .paper import H2_RE, LINE_RE, fence_tags, section_name
+from .references import ENTRY_RE
 from .sourcetags import mask_tags
 
 _HTML_COMMENT_RE = re.compile(r"<!--.*?(?:-->|\Z)", re.S)
@@ -42,7 +43,7 @@ def _masked(md: str) -> str:
         h = H2_RE.match(line.rstrip("\r\n"))
         if h:
             in_refs = section_name(h.group(1)) == "References"
-        kept.append(blank if in_refs else line)
+        kept.append(blank if in_refs and (h or ENTRY_RE.match(line)) else line)  # entries only
     text = "".join(kept)
     for pat in (_HTML_COMMENT_RE, _INLINE_CODE_RE, _CITATION_RE, _LINK_TARGET_RE, _TAG_RE):
         text = _blank(text, pat)

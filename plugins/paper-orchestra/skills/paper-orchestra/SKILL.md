@@ -14,7 +14,7 @@ You run a seven-stage pipeline that drafts a Markdown paper in `<project>/paper/
    - `PO` = `python3 $SCRIPTS/po.py`;
    - `PAPER` = `<cwd>/paper`, where cwd is the project root when the skill starts.
 2. Shell variables do not persist between Bash calls: write the absolute values into every command. Run every command from the project root, so the CLI's default `--paper paper` is `$PAPER`; never pass `--paper`. File arguments (`--from`, `--rulings`, `--candidate`, `--map`, `--pre`, `--out`) are always absolute `$PAPER/...` paths, because relative ones resolve against the cwd.
-3. Every `$PO` command prints one JSON object. Exit 0 = ok, 1 = problems (in the JSON), 2 = usage or config error (stderr says why).
+3. Every `$PO` command prints one JSON object. Exit 0 = ok, 1 = problems (in the JSON), 2 = usage or config error (stderr says why). Show the user any `warnings` in that JSON. For example, `paper references` warns when text under `## References` is not a reference entry: it keeps that text after the list and asks the user to give it its own heading.
 4. Run `$PO doctor`. If it exits 2 or `python_ok` is false, say that Python 3.10 or newer is required and stop. Otherwise show `problems` and `next_steps` once; they do not block (a missing plot Python only stops figure building).
 5. Run `$PO state show`: each stage's status (`pending`, `running`, `done`, `failed`), `stale`, `tasks_done`, `next_stage`, `warnings`. Show any warnings.
 

@@ -9,10 +9,10 @@ def test_cited_keys():
     assert cited_keys("x [@b; @a, p. 3] then [@b] `[@code]`") == ["b", "a"]
 
 def test_update_references_numbered_and_appendix():
-    md = "## Intro\n\n[@b] and [@a].\n\n## References\n\nold\n\n## Appendix\n\nZ.\n"
+    md = "## Intro\n\n[@b] and [@a].\n\n## References\n\n- [@zz] Old, stale entry.\n\n## Appendix\n\nZ.\n"
     out = update_references(md, {"a": E("a", 8), "b": E("b")}, "numbered")
     assert out.index("[@b] A0 B") < out.index("[@a] A0 B") < out.index("## Appendix")
-    assert "old" not in out and "et al." in out and "https://doi.org/10.1/a" in out
+    assert "stale" not in out and "[@zz]" not in out and "et al." in out and "https://doi.org/10.1/a" in out
 
 def test_author_year_alphabetical_missing_skipped_no_appendix():
     md = "## Intro\n\n[@b] [@a] [@gone].\n"
@@ -38,3 +38,19 @@ def test_cited_keys_skip_tilde_fence_and_keep_crlf():
     md = "## Intro\r\n\r\n[@a].\r\n"
     out = update_references(md, {"a": E("a")}, "numbered")
     assert out.startswith(md) and "\n" not in out.replace("\r\n", "")
+
+
+def test_text_under_references_is_kept_after_the_list():
+    from po.references import kept_reference_lines
+    md = ("## Intro\n\n[@b].\n\n## References\n\n- [@zz] Old entry.\nMy note on [@a] with 91.7.\nIts second line.\n"
+          "- [@b] Old b.\n\nAnother note.\n\n## Appendix\n\nZ.\n")
+    assert kept_reference_lines(md) == ["My note on [@a] with 91.7.", "Its second line.", "Another note."]
+    assert cited_keys(md) == ["b", "a"]  # a citation in kept text counts; entry lines do not
+    out = update_references(md, {"a": E("a"), "b": E("b")}, "numbered")
+    refs = out.split("## References")[1].split("## Appendix")[0]
+    assert refs.index("- [@b] A0 B") < refs.index("- [@a] A0 B") < refs.index("My note on [@a] with 91.7.")
+    assert "My note on [@a] with 91.7.\nIts second line.\n\nAnother note.\n\n" in refs
+    assert "Old entry" not in out and "Old b" not in out
+    assert update_references(out, {"a": E("a"), "b": E("b")}, "numbered") == out
+    crlf = update_references(md.replace("\n", "\r\n"), {"a": E("a"), "b": E("b")}, "numbered")
+    assert crlf == out.replace("\n", "\r\n")

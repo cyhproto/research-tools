@@ -49,8 +49,12 @@ def test_tag_and_trivial():
 
 
 def test_references_section_ends_at_next_h2():
-    md = "## References\n- 2016 pp 123.4\n## Appendix\nvalue 88.8\n"
+    md = "## References\n- [@x] 2016 pp 123.4\n## Appendix\nvalue 88.8\n"
     assert vals(md) == [88.8]
+
+
+def test_text_under_references_that_is_not_an_entry_is_body_text():
+    assert vals("## References\n- [@x] 2016 pp 123.4\nMy note 77.7.\n") == [77.7]
 
 
 def test_fence_in_references_and_tilde():

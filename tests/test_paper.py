@@ -266,10 +266,15 @@ def test_references_file_rewrites_only_that_file(tmp_path, capsys):
     (paper / "paper.md").write_text("# T\n\n## Method\n\nNo citations.\n")
     cand = paper / "drafts/candidate_v1.md"
     cand.parent.mkdir()
-    cand.write_text("# T\n\n## Method\n\nAs shown [@Kim2024Own].\n\n## References\n\n- stale entry\n")
-    assert _main(["paper", "references", "--paper", str(paper), "--file", str(cand)]) == 0
-    assert "- [@Kim2024Own] J. Kim." in cand.read_text() and "stale entry" not in cand.read_text()
-    assert (paper / "paper.md").read_text() == "# T\n\n## Method\n\nNo citations.\n"
+    cand.write_text("# T\n\n## Method\n\nAs shown [@Kim2024Own].\n\n## References\n\n- [@Old2020] stale entry\n\nMy note.\n")
     capsys.readouterr()
+    assert _main(["paper", "references", "--paper", str(paper), "--file", str(cand)]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert "- [@Kim2024Own] J. Kim." in cand.read_text() and "stale entry" not in cand.read_text()
+    assert cand.read_text().endswith("- [@Kim2024Own] J. Kim. (2024). Own Title. *Venue*.\n\nMy note.\n")
+    assert out["kept"] == ["My note."] and len(out["warnings"]) == 1 and "own" in out["warnings"][0]
+    assert (paper / "paper.md").read_text() == "# T\n\n## Method\n\nNo citations.\n"
+    assert _main(["paper", "references", "--paper", str(paper)]) == 0
+    assert json.loads(capsys.readouterr().out) | {"written": ""} == {"written": "", "kept": [], "warnings": []}
     assert _main(["paper", "references", "--paper", str(paper), "--file", str(paper / "nope.md")]) == 2
     assert "not found" in capsys.readouterr().err

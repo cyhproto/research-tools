@@ -10,7 +10,7 @@ from .cli import common_parent, emit
 from .library import load_library
 from .numbers import matches, materials_numbers, unmatched
 from .paper import H2_RE, LINE_RE, fence_tags, section_name, split_sections
-from .references import BRACKET_RE, KEY_RE, cited_keys
+from .references import BRACKET_RE, ENTRY_RE, KEY_RE, cited_keys
 from .settings import load_settings
 from .sourcetags import mask_tags, parse_tags
 from .style import find_style, load_style
@@ -66,7 +66,9 @@ def _collapse(s: str) -> str:
 
 
 def _prose_lines(md: str) -> list[tuple[int, str]]:
-    """(line number, line) for lines outside fenced code and the References section."""
+    """(line number, line) for lines outside fenced code, the References heading and its entries.
+
+    Other text under References is the user's (`paper references` keeps it), so it counts as prose."""
     lines = LINE_RE.findall(md)
     out, in_refs = [], False
     for n, (line, tag) in enumerate(zip(lines, fence_tags(lines)), 1):
@@ -75,9 +77,29 @@ def _prose_lines(md: str) -> list[tuple[int, str]]:
         h = H2_RE.match(line.rstrip("\r\n"))
         if h:
             in_refs = section_name(h.group(1)) == "References"
-        if not in_refs:
-            out.append((n, line.rstrip("\r\n")))
+        if in_refs and (h or ENTRY_RE.match(line)):
+            continue
+        out.append((n, line.rstrip("\r\n")))
     return out
+
+
+def _check_reference_text(md: str, items: "_Items") -> None:
+    """One warn item for text under ## References that is not a reference entry."""
+    lines = LINE_RE.findall(md)
+    found, in_refs = [], False
+    for n, (line, tag) in enumerate(zip(lines, fence_tags(lines)), 1):
+        s = line.rstrip("\r\n")
+        h = H2_RE.match(s) if tag is None else None
+        if h:
+            in_refs = section_name(h.group(1)) == "References"
+        elif in_refs and s.strip() and not ENTRY_RE.match(s):
+            found.append(n)
+    if found:
+        items.add("references", "warn", found[0],
+                  f"text under ## References is not a reference entry "
+                  f"(line{'s' if len(found) > 1 else ''} {', '.join(map(str, found))}); "
+                  "give it its own ## heading. Check reads it as body text, and `paper references` keeps it "
+                  "after the list", {"lines": found})
 
 
 def _blocks(md: str) -> list[list[tuple[int, str]]]:
@@ -335,6 +357,7 @@ def run_check(paper_dir: Path, project_root: Path) -> list[CheckItem]:
     _check_numbers(md, paper_dir, lib, settings, items)
     _check_figures(md, paper_dir, items)
     _check_venue(md, paper_dir, settings, items)
+    _check_reference_text(md, items)
     built = items.build()
     write_report(paper_dir, built)  # finalize reads check/report.json
     return built

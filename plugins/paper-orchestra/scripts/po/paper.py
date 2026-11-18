@@ -409,7 +409,7 @@ def _cmd_edits(args) -> int:
 
 def _cmd_references(args) -> int:
     from .library import load_library
-    from .references import update_references
+    from .references import kept_reference_lines, update_references
     paper = Path(args.paper)
     style = _style(args)
     if args.file:
@@ -423,8 +423,15 @@ def _cmd_references(args) -> int:
     if style is None or current is None:
         return 2
     entries = {e.key: e for e in load_library(paper)}
+    kept = kept_reference_lines(current)
     _write(target, update_references(current, entries, style.citation_style))
-    emit({"written": str(target)})
+    if len(kept) == 1:
+        what, it, its = "1 line under ## References is not a reference entry", "It was", "it as body text. Give it its"
+    else:
+        what, it, its = (f"{len(kept)} lines under ## References are not reference entries", "They were",
+                         "them as body text. Give them their")
+    warnings = [f"{what}. {it} kept after the list, and Check reads {its} own ## heading."] if kept else []
+    emit({"written": str(target), "kept": kept, "warnings": warnings})
     return 0
 
 

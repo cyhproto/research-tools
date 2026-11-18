@@ -125,11 +125,21 @@ def test_plural_and_range_references(tmp_path):
     msgs = " ".join(i.message for i in fails(run_check(*setup(tmp_path / "b", lambda md: edit(md).replace("Fig 12", "Fig 120"))), "figures"))
     assert "Figure 12 " in msgs + " "
 
-def test_caption_in_fence_and_references_ignored(tmp_path):
-    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "```\n*Table 9: x.*\n```\n\n## Conclusion").replace("## References", "## References\n\nSee Table 9."))
+def test_caption_in_fence_and_reference_entries_ignored(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "```\n*Table 9: x.*\n```\n\n## Conclusion").replace("## References\n\n", "## References\n\n- [@Old2020] See Table 9.\n"))
     assert not [i for i in fails(run_check(p, root), "figures")]
-    p, root = setup(tmp_path / "b", lambda md: md.replace("Figure 1 shows", "It shows").replace("## References", "## References\n\nSee Figure 1."))
+    p, root = setup(tmp_path / "b", lambda md: md.replace("Figure 1 shows", "It shows").replace("## References\n\n", "## References\n\n- [@Old2020] See Figure 1.\n"))
     assert any("Figure 1" in i.message for i in fails(run_check(p, root), "figures"))
+
+def test_text_under_references_is_checked_and_warned(tmp_path):
+    p, root = setup(tmp_path, lambda md: md + "\nWe also reach 91.7 [@Fake2024Paper].\n\nSee Figure 1.\n")
+    items = run_check(p, root)
+    n = len((p / "paper.md").read_text().splitlines())
+    assert any(i.status == "fail" and "Fake2024Paper" in i.message and i.line == n - 2 for i in items)
+    assert any(i.category == "numbers" and i.status == "needs_ruling" and i.data["token"] == "91.7" for i in items)
+    [w] = [i for i in items if i.category == "references"]
+    assert w.status == "warn" and w.line == n - 2 and f"lines {n - 2}, {n}" in w.message and "heading" in w.message
+    assert finalize(p, {})["status_line"] == "NOT READY: 2 problems"
 
 def test_author_whole_word_and_appendix(tmp_path):
     p, root = setup(tmp_path)
