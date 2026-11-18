@@ -395,7 +395,8 @@ def _cmd_aggregate(args) -> int:
             r = parse_review(_read(f))
             if score(r, "Overall") is None:  # a missing score would silently decide keep-or-undo
                 lo, hi = SCORE_FIELDS["Overall"]
-                raise ValueError(f"no valid Overall score ({lo}-{hi}); got {r.get('Overall', 'none')!r}")
+                got = repr(r["Overall"]) if "Overall" in r else "no Overall field"
+                raise ValueError(f"no valid Overall score ({lo}-{hi}); got {got}")
             reviews.append(r)
         meta = None
         mf = d / "meta.md"
