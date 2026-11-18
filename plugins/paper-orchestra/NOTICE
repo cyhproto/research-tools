@@ -1,0 +1,12 @@
+paper-orchestra
+Copyright 2026 research-tools contributors
+
+This product includes prompts and logic adapted from PaperOrchestra (https://github.com/google-research/paper-orchestra, commit d9bae997e793a015ed38bb1605be9eb58c00284f), Copyright 2026 Google LLC, licensed under the Apache License, Version 2.0.
+
+Modifications:
+- ported from Gemini API calls to Claude Code agents
+- Markdown output instead of LaTeX
+- adapted ground rules for unpublished research
+- honest Limitations section
+- reviewers' experiment requests kept as a to-do list
+- abstract-less papers kept with limited use

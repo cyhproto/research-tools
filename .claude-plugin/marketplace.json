@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "research-tools",
+  "description": "Research workflow tools for Claude Code",
+  "owner": { "name": "research-tools" },
+  "plugins": [
+    {
+      "name": "paper-orchestra",
+      "description": "Draft a verified Markdown research paper from a project's code, results and notes: outline, literature, figures, writing, simulated review, checks.",
+      "source": "./plugins/paper-orchestra",
+      "category": "productivity"
+    }
+  ]
+}

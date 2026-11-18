@@ -1,0 +1,8 @@
+{
+  "name": "paper-orchestra",
+  "version": "0.1.0",
+  "description": "Draft a verified Markdown research paper from a project's code, results and notes: outline, literature, figures, writing, simulated review, checks. A Claude Code port of Google Research's PaperOrchestra.",
+  "author": { "name": "research-tools" },
+  "license": "Apache-2.0",
+  "keywords": ["research", "paper-writing", "literature-review"]
+}
