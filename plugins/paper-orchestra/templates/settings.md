@@ -9,7 +9,7 @@ blind_review: true
 language: English
 # profile: usage profile, full or light (controls literature size, critic and review rounds)
 profile: full
-# max_review_rounds: upper limit on review and revise rounds (default: the profile's revision rounds)
+# max_review_rounds: upper limit on review and revise rounds (optional; when absent it follows the profile's revision rounds)
 max_review_rounds: 3
 # hand_edits: keep preserves your manual edits on re-draft, revise lets reviewers rework them
 hand_edits: keep

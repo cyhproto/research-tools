@@ -84,11 +84,23 @@ def write_settings(paper_dir: Path, s: Settings) -> Path:
     """Fill templates/settings.md with the values of `s` and write paper/settings.md."""
     text = (PLUGIN_DIR / "templates/settings.md").read_text(encoding="utf-8")
     for key in SETTINGS_KEYS:
-        text = _replace_line(text, key, getattr(s, key))
+        if key == "max_review_rounds" and s.max_review_rounds == s.profile_obj.revision_rounds:
+            text = _drop_line(text, key)  # leave unset so it follows the profile
+        else:
+            text = _replace_line(text, key, getattr(s, key))
     path = Path(paper_dir) / "settings.md"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def _drop_line(text: str, key: str) -> str:
+    return "".join(l for l in text.splitlines(keepends=True) if not l.startswith(f"{key}:"))
+
+
+def _has_frontmatter(text: str) -> bool:
+    lines = text.splitlines()
+    return bool(lines) and lines[0].strip() == "---" and any(l.strip() == "---" for l in lines[1:])
 
 
 def _replace_line(text: str, key: str, value) -> str:
@@ -161,6 +173,10 @@ def _cmd_set(args: argparse.Namespace) -> int:
         print(f"unknown setting {args.key!r}; known: {', '.join(SETTINGS_KEYS)}", file=sys.stderr)
         return 2
     old = path.read_text(encoding="utf-8")
+    if not _has_frontmatter(old):
+        print(f"{path} has no front matter (a leading and a closing '---' line); fix the file first",
+              file=sys.stderr)
+        return 2
     path.write_text(_replace_line(old, args.key, parse_value(args.value)), encoding="utf-8")
     try:
         load_settings(Path(args.paper))

@@ -44,3 +44,20 @@ def test_cli_set(tmp_path):
     assert (paper / "settings.md").read_text() == before
     assert main(["settings", "set", "bogus", "1", "--paper", str(paper)]) == 2
     assert (paper / "settings.md").read_text() == before
+
+def test_set_profile_follows_profile_rounds(tmp_path):
+    paper = tmp_path / "paper"
+    main(["settings", "init", "--paper", str(paper)])
+    assert main(["settings", "set", "profile", "light", "--paper", str(paper)]) == 0
+    assert load_settings(paper).max_review_rounds == 1
+    main(["settings", "set", "max_review_rounds", "2", "--paper", str(paper)])
+    assert load_settings(paper).max_review_rounds == 2
+
+def test_set_requires_front_matter(tmp_path, capsys):
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    for content in ("", "style: x\n", "---\nstyle: x\n"):
+        (paper / "settings.md").write_text(content)
+        assert main(["settings", "set", "profile", "light", "--paper", str(paper)]) == 2
+        assert (paper / "settings.md").read_text() == content
+    assert "front matter" in capsys.readouterr().err
