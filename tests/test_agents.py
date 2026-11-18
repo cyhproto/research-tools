@@ -20,7 +20,13 @@ AGENTS = {"materials-drafter": dict(model="inherit", tools="Read, Glob, Grep, Wr
           "figure-critic": dict(model="sonnet", tools="Read, Write",
           rules=[f"C{i}" for i in range(1, 9)], ground_rules=False, ported=True),
           "section-writer": dict(model="inherit", tools="Read, Write",
-          rules=[f"W{i}" for i in range(1, 12)], ground_rules=True, ported=True)}
+          rules=[f"W{i}" for i in range(1, 12)], ground_rules=True, ported=True),
+          "reviewer": dict(model="inherit", tools="Read, Write",
+          rules=[f"V{i}" for i in range(1, 8)], ground_rules=False, ported=True),
+          "meta-reviewer": dict(model="inherit", tools="Read, Write",
+          rules=[f"A{i}" for i in range(1, 4)], ground_rules=False, ported=True),
+          "reviser": dict(model="inherit", tools="Read, Write",
+          rules=[f"X{i}" for i in range(1, 11)], ground_rules=True, ported=True)}
 
 
 @pytest.mark.parametrize("name", sorted(AGENTS))
@@ -39,3 +45,9 @@ def test_agent(name):
         assert GROUND_RULES in body
     if spec["ported"]:
         assert "Adapted from PaperOrchestra (Apache-2.0)" in body
+
+
+def test_reviewer_has_original_top_rubric():
+    text = (PLUGIN / "agents/reviewer.md").read_text(encoding="utf-8")
+    assert ("This study is among the top 2% of all papers. It is one of the most thorough I have seen. "
+            "It changed my thinking on this topic. I would fight for it to be accepted") in text
