@@ -107,8 +107,8 @@ Measured usage on the sample run (the TSAM example from the original project, `f
 
 - running time: 32 minutes over three invocations, not counting the two pauses;
 - 39 agent runs: 6 literature scouts, 10 figure builds and 10 critic rounds for 4 figures, 6 reviewer and 2 meta-reviewer runs, 1 revision, and one each of the planner, the two writers and the checker;
-- about 16 million tokens, mostly cache reads: 13.4 million cache reads, 1.6 million cache writes, 1.0 million other input (mostly web search results) and 0.44 million output;
-- Claude Code's estimate at API list prices: about $18. A subscription does not bill this; it shows the scale.
+- about 15 million tokens, mostly cache reads: 12.4 million cache reads, 1.5 million cache writes, 1.0 million other input (mostly web search results) and 0.42 million output;
+- Claude Code's estimate at API list prices: about $17. A subscription does not bill this; it shows the scale.
 
 That review stopped after one round, because the revision scored lower and was undone. Each further round adds about 12 minutes and 1.5 million tokens.
 
