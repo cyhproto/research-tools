@@ -10,7 +10,11 @@ GROUND_RULES = (PLUGIN / "prompts/ground-rules.md").read_text(encoding="utf-8").
 AGENTS = {"materials-drafter": dict(model="inherit", tools="Read, Glob, Grep, Write, Bash",
           rules=["M1", "M2", "M3", "M4", "M5", "M6", "M7"], ground_rules=True, ported=False),
           "outline-planner": dict(model="inherit", tools="Read, Write",
-          rules=[f"O{i}" for i in range(1, 11)], ground_rules=True, ported=True)}
+          rules=[f"O{i}" for i in range(1, 11)], ground_rules=True, ported=True),
+          "literature-scout": dict(model="sonnet", tools="WebSearch, WebFetch, Read, Write",
+          rules=[f"S{i}" for i in range(1, 8)], ground_rules=False, ported=True),
+          "literature-writer": dict(model="inherit", tools="Read, Write",
+          rules=[f"L{i}" for i in range(1, 8)], ground_rules=True, ported=True)}
 
 
 @pytest.mark.parametrize("name", sorted(AGENTS))
