@@ -92,11 +92,11 @@ Wall time is the sum of the three invocations, without the time spent at the pau
 
 ### Bugs found and fixed
 
-1. **The outline planner redrew a supplied figure.** Fixed in `b86f4f2`, `fix: outline planner must not redraw supplied figures (found in E2E)`.
+1. **The outline planner redrew a supplied figure.** Fixed in `4d85454`, `fix: outline planner must not redraw supplied figures (found in E2E)`.
    - The planner added a Mermaid diagram "matching the supplied tsam_overview.png", so the paper showed the overview twice (Figure 1 as Mermaid, Figure 2 as the supplied image). Spec §5 says supplied images are used as they are.
    - Fix: rule O2 now says supplied images are already in the paper, and the planner plans only new figures.
    - Check: a Gather and Outline run on a fresh copy planned 3 plots and no diagram, and said the supplied figure "is used as is and not redrawn". The sample run above was planned before the fix.
-2. **Write-notes problems were left in `paper.md` without a word.** Fixed in `6f5e42a`, `fix: report write-notes problems left in paper.md after an undone round (found in E2E)`.
+2. **Write-notes problems were left in `paper.md` without a word.** Fixed in `578022f`, `fix: report write-notes problems left in paper.md after an undone round (found in E2E)`.
    - The section writer listed consistency problems in `drafts/write_notes.md`. One was a false claim in the Introduction and Related Work that removing the temporal branch "causes the largest drop" (Table 2 shows larger drops). The round-1 reviser fixed them, but its revision was undone, so they stayed in `paper.md`.
    - SKILL.md had promised that "the first reviser round fixes them", and the final report never mentioned them.
    - Fix: the review report now says when no revision was kept, lists the write-notes problems, and points to `drafts/candidate_v1.md`. This changes reporting only and was not re-run.
@@ -119,7 +119,7 @@ Run on 2026-11-18 with Claude Code 2.1.327 and the headless setup above: subscri
     - `numbers-015`: number 91.7 not found in the materials;
     - `citations-020`: sentence cites title-only entry Zhou2022AudiovisualSegmentation. The 23.20 is in the log, so only the title-only rule catches this sentence.
   - **Checker:** with `/paper-orchestra check`, all three stay FAIL with stated reasons ("The title does not support any Ref-AVS result"), giving `NOT READY: 15 problems`.
-  - **Literal append:** a sentence appended at the very end of `paper.md` lands inside `## References`. Check skips that section by design and `paper references` regenerates it, so nothing is flagged. *Superseded by fix round 0 (`a41c97f`): such text is now kept after the list and checked as body text, with one warn item.*
+  - **Literal append:** a sentence appended at the very end of `paper.md` lands inside `## References`. Check skips that section by design and `paper references` regenerates it, so nothing is flagged. *Superseded by fix round 0 (`91acaa3`): such text is now kept after the list and checked as body text, with one warn item.*
   - **Usage:** scripts 0; checker run 0.51 M.
 - **Rerun figures only (item 4): pass.**
   - **Run:** `/paper-orchestra figures` on a copy of the sample, with the full profile as it was, took 369 s. It moved the old figures to `old/figures-<stamp>/` and rebuilt all 4 figures (9 builds, 9 critic rounds).
@@ -167,7 +167,7 @@ Run on 2026-11-18 with Claude Code 2.1.327 and the headless setup above: subscri
 
 ### Title-only rules (Ruling P20)
 
-L4, W9 and X4 now list allowed and forbidden sentence patterns for entries without an abstract (`f095d1c`). Title-only FAILs after the change:
+L4, W9 and X4 now list allowed and forbidden sentence patterns for entries without an abstract (`698b597`). Title-only FAILs after the change:
 
 | Paper | Title-only sentences | FAIL |
 | --- | --- | --- |
@@ -184,25 +184,25 @@ L4, W9 and X4 now list allowed and forbidden sentence patterns for entries witho
 
 ### Bugs found and fixed
 
-1. **`f095d1c` `fix: stricter title-only citation rules (found in E2E)`.** This is Ruling P20, prompted by Task 21's 11 FAILs.
-2. **`39783ab` `fix: calc tags may use ids defined later in the log (found in E2E)`.**
+1. **`698b597` `fix: stricter title-only citation rules (found in E2E)`.** This is Ruling P20, prompted by Task 21's 11 FAILs.
+2. **`1c3a876` `fix: calc tags may use ids defined later in the log (found in E2E)`.**
    - **Problem:** `log verify` resolved ids in one pass. A `calc` tag above the final `## Source values` section, the layout that the template and drafter rule M2 prescribe, was reported as "unknown id". In the gather run the drafter worked around it by tagging every value twice.
    - **Fix:** src tags are resolved first, and a calc uses an id's closest definition above it, or else the first one below it. There are 3 regression tests.
-3. **`d1c1849` `fix: README usage figures counted the first two invocations twice (found in E2E)`.**
+3. **`a5eb051` `fix: README usage figures counted the first two invocations twice (found in E2E)`.**
    - **Problem:** with `claude -p --continue`, the JSON `modelUsage` and `total_cost_usd` are cumulative for the session. The S4 transcripts show it: run1 used 0.21 M and run2 0.36 M, yet run2 reports 0.58 M.
    - **Correction:** the sample run above used 15.29 M tokens and $16.66, not 16.41 M and $18.13. Its Usage table's run2 and run3 columns are cumulative, so the total is run3's figure. The README now says about 15 million tokens and about $17.
-4. **`eeb8522` `fix: checker can list the materials folder it must read (found in E2E)`.**
+4. **`9654400` `fix: checker can list the materials folder it must read (found in E2E)`.**
    - **Problem:** the checker had only Read and Write, so it could not list `materials/`. In the journal Check it got EISDIR, then guessed 7 file names and found only `idea.md` and `experiment_log.md`.
    - **Fix:** it now has Glob and reads the same text files the script uses. In the interrupted run's Check it ran `Glob **/*` and also read `figures/captions.md`.
 
 ### Other observations (no change made)
 
-- **Resume without a checkpoint:** both interruptions hit an output that was written but not yet checkpointed (a figure's meta file, `reviews/v0/r1.md`). Both times the orchestrator recorded the checkpoint from the file instead of redoing the work. Only Literature states this rule in SKILL.md (a task is pending only without a checkpoint *and* without a file); for figures and reviews it rests on the model's judgment. *Superseded by fix round 0 (`b58e361`): SKILL §3 states one resume rule for every stage.*
-- **Text below `## References`:** Check ignores it, and `paper references` replaces it. A paragraph appended at the very end of `paper.md`, without its own `##` heading, is lost silently when the next stage regenerates References. The tests encode this as the design. *Superseded by fix round 0 (`a41c97f`): the text is kept after the list and checked.*
+- **Resume without a checkpoint:** both interruptions hit an output that was written but not yet checkpointed (a figure's meta file, `reviews/v0/r1.md`). Both times the orchestrator recorded the checkpoint from the file instead of redoing the work. Only Literature states this rule in SKILL.md (a task is pending only without a checkpoint *and* without a file); for figures and reviews it rests on the model's judgment. *Superseded by fix round 0 (`ec9b05c`): SKILL §3 states one resume rule for every stage.*
+- **Text below `## References`:** Check ignores it, and `paper references` replaces it. A paragraph appended at the very end of `paper.md`, without its own `##` heading, is lost silently when the next stage regenerates References. The tests encode this as the design. *Superseded by fix round 0 (`91acaa3`): the text is kept after the list and checked.*
 - **Journal required statements:** no agent writes "Data and code availability" or "Declaration of competing interests" (W1 limits the writer to the style's `sections`, and G4 forbids inventing them). The writer says so, and Check FAILs until the user adds them.
-- **Numbers quoted from cited abstracts:** for example "9.1%" from Severson et al. These FAIL in Check, because K1 accepts only the materials, although G2 lets writers use abstract facts. This is a spec tension for the user to decide. *Superseded by fix round 0 (`0b22e9b`, Ruling P21): a number from the abstract of an entry cited in the same sentence passes.*
-- **Asking before a stale stage:** `/paper-orchestra check` on a stale Check asked before running (§10). `/paper-orchestra review` on a stale review ran without asking. *Superseded by fix round 0 (`0113fb7`): naming a stage is the approval to run it, stale or not.*
-- **Key-less lookups:** the key-less OpenAlex budget for this network address ran out during the interrupted run (`429 … Insufficient budget`), and Semantic Scholar also returned 429. 8 candidates were dropped as `lookup-failed`; they are retried on the next `refs verify`. The README already recommends a free OpenAlex key. *Changed since: fix round 0 (`116470d`) explains such drops to the user. A re-scouted Literature run retries them only if the scouts find the same titles again, so the final fix wave added a "retry lookups only" re-run that keeps the candidates (`bb509c5`).*
+- **Numbers quoted from cited abstracts:** for example "9.1%" from Severson et al. These FAIL in Check, because K1 accepts only the materials, although G2 lets writers use abstract facts. This is a spec tension for the user to decide. *Superseded by fix round 0 (`a6bb9ee`, Ruling P21): a number from the abstract of an entry cited in the same sentence passes.*
+- **Asking before a stale stage:** `/paper-orchestra check` on a stale Check asked before running (§10). `/paper-orchestra review` on a stale review ran without asking. *Superseded by fix round 0 (`ae30189`): naming a stage is the approval to run it, stale or not.*
+- **Key-less lookups:** the key-less OpenAlex budget for this network address ran out during the interrupted run (`429 … Insufficient budget`), and Semantic Scholar also returned 429. 8 candidates were dropped as `lookup-failed`; they are retried on the next `refs verify`. The README already recommends a free OpenAlex key. *Changed since: fix round 0 (`6d8fc80`) explains such drops to the user. A re-scouted Literature run retries them only if the scouts find the same titles again, so the final fix wave added a "retry lookups only" re-run that keeps the candidates (`da1d29c`).*
 - **Gather on "go":** it re-validates only when the materials changed. A result file changed during the pause is re-checked only when Gather runs again, which then reports it.
 - **Fixture slip:** the journal fixture's log first said "nine features" where `idea.md` lists eight. The section writer flagged it in `write_notes.md`, and the committed fixture now says eight.
 
@@ -225,12 +225,12 @@ L4, W9 and X4 now list allowed and forbidden sentence patterns for entries witho
 
 These changes address observations above. They were checked with unit tests and script-only runs; there were no new `claude -p` runs.
 
-- **Numbers from cited abstracts** (`0b22e9b`): such a number now passes Check when the abstract of an entry cited in the same sentence holds it, and the item names the key. Re-checking the journal paper this way (script only) turns "60" (Xu 2022) and "9.1%" (Severson 2019) into PASS items.
-- **Text below `## References`** (`a41c97f`): it is kept after the list, checked as body text, and reported in one warn item.
+- **Numbers from cited abstracts** (`a6bb9ee`): such a number now passes Check when the abstract of an entry cited in the same sentence holds it, and the item names the key. Re-checking the journal paper this way (script only) turns "60" (Xu 2022) and "9.1%" (Severson 2019) into PASS items.
+- **Text below `## References`** (`91acaa3`): it is kept after the list, checked as body text, and reported in one warn item.
 - **SKILL changes:**
-  - §3 states one resume rule for outputs written before their checkpoint (`b58e361`);
-  - naming a stage approves running it even when stale (`0113fb7`);
-  - `lookup-failed` drops are explained (`116470d`);
-  - scratch files go under `$PAPER/.tmp/` (`0d721fe`).
-- **README** (`0880a65`): journal statements, reference corrections, and the full-profile ceiling. A full-profile review round, measured from the Task 21 transcripts, takes 716 s and 3.00 M tokens: 1.39 M for its agents and 1.60 M for the orchestrating session. The 1.5 M per round quoted in the Task 21 section counted the agents only. With all 3 rounds, the sample would take about 56 minutes and 21 M tokens.
-- **Journal fixture** (`f100950`): its abstracts are now paraphrased. The journal scenario above ran with the verbatim ones.
+  - §3 states one resume rule for outputs written before their checkpoint (`ec9b05c`);
+  - naming a stage approves running it even when stale (`ae30189`);
+  - `lookup-failed` drops are explained (`6d8fc80`);
+  - scratch files go under `$PAPER/.tmp/` (`702e80b`).
+- **README** (`4f60a7a`): journal statements, reference corrections, and the full-profile ceiling. A full-profile review round, measured from the Task 21 transcripts, takes 716 s and 3.00 M tokens: 1.39 M for its agents and 1.60 M for the orchestrating session. The 1.5 M per round quoted in the Task 21 section counted the agents only. With all 3 rounds, the sample would take about 56 minutes and 21 M tokens.
+- **Journal fixture** (`afbe2ed`): its abstracts are now paraphrased. The journal scenario above ran with the verbatim ones.
