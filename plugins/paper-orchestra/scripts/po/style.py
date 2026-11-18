@@ -54,10 +54,15 @@ def _names(data: dict, key: str, required: bool, fail) -> list[str]:
 def load_style(path: Path) -> StyleGuide:
     """Load a style guide; raises StyleError, naming the file, when its front matter is unusable."""
     path = Path(path)
-    data, body = parse_frontmatter(path.read_text(encoding="utf-8"))
 
     def fail(msg: str):
         raise StyleError(f"style file {path}: {msg}")
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as e:
+        fail(f"not valid UTF-8 ({e}); save it as UTF-8")
+    data, body = parse_frontmatter(text)
 
     if not data:
         fail("no front matter: start the file with a '---' line, then the settings, then a closing '---' line")

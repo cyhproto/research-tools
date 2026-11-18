@@ -60,3 +60,19 @@ def test_malformed_style_stops_commands_with_exit_2(tmp_path, capsys):
         assert str(paper / "style.md") in err and "length_words" in err and "Traceback" not in err, cmd
         assert err.startswith("StyleError: ") == (cmd[0] == "check"), cmd  # check run: the catch-all
     assert not (paper / "settings.md").exists()
+
+
+def test_style_that_is_not_utf8_is_a_clear_error(tmp_path, capsys):
+    from po.cli import main
+    from po.style import StyleError
+    paper = tmp_path / "paper"
+    paper.mkdir()
+    f = paper / "style.md"
+    f.write_bytes("---\nname: café\nsections: [Abstract]\nlength_words: [1, 2]\n---\n".encode("latin-1"))
+    with pytest.raises(StyleError) as e:
+        load_style(f)
+    assert str(f) in str(e.value) and "UTF-8" in str(e.value)
+    (paper / "paper.md").write_text("# T\n\n## Abstract\n\nText.\n")
+    assert main(["paper", "references", "--paper", str(paper)]) == 2
+    err = capsys.readouterr().err
+    assert str(f) in err and "UTF-8" in err and not err.startswith("UnicodeDecodeError")
