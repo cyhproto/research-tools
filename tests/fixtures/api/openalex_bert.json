@@ -1,0 +1,801 @@
+{
+ "meta": {
+  "notice": "No API key, so this request shares one free daily budget ($0.10) with everyone on your network's IP address. Get a free key with its own $1/day at https://openalex.org/settings/api and add api_key=YOUR_KEY to your requests. An AI agent can get one for its user in one call: POST https://api.openalex.org/api-keys with {\"email\": \"<your user's email>\"}; we email them a link, and the key works once they click it. Docs for agents: https://help.openalex.org/llms.txt",
+  "count": 3,
+  "db_response_time_ms": 390,
+  "page": 1,
+  "per_page": 3,
+  "groups_count": null,
+  "x_query": {
+   "oql": "get works with (BERT Pre-training of Deep Bidirectional Transformers for Language Understanding) in the title",
+   "x_new_oql": "get works with (BERT Pre-training of Deep Bidirectional Transformers for Language Understanding) in the title",
+   "oqo": {
+    "get_rows": "works",
+    "filter_rows": [
+     {
+      "column_id": "display_name.search",
+      "value": "BERT Pre-training of Deep Bidirectional Transformers for Language Understanding",
+      "operator": "has"
+     }
+    ]
+   },
+   "url": "/works?filter=display_name.search:BERT Pre-training of Deep Bidirectional Transformers for Language Understanding&per_page=3",
+   "order": "best matches first",
+   "order_default": true
+  },
+  "cost_usd": 0.001
+ },
+ "results": [
+  {
+   "id": "https://openalex.org/W2963341956",
+   "doi": "https://doi.org/10.18653/v1/n19-1423",
+   "display_name": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+   "publication_year": 2019,
+   "publication_date": "2019-01-01",
+   "authorships": [
+    {
+     "author_position": "first",
+     "author": {
+      "id": "https://openalex.org/A5057457287",
+      "display_name": "Jacob Devlin",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [],
+     "countries": [],
+     "is_corresponding": false,
+     "raw_author_name": "Jacob Devlin",
+     "raw_affiliation_strings": [],
+     "raw_orcid": null,
+     "affiliations": []
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": null,
+      "display_name": "Ming-Wei Chang",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [],
+     "countries": [],
+     "is_corresponding": false,
+     "raw_author_name": "Ming-Wei Chang",
+     "raw_affiliation_strings": [],
+     "raw_orcid": null,
+     "affiliations": []
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": "https://openalex.org/A5081862885",
+      "display_name": "Kenton Lee",
+      "orcid": "https://orcid.org/0000-0002-9534-5970",
+      "observed_orcids": [
+       "https://orcid.org/0000-0002-9534-5970"
+      ]
+     },
+     "institutions": [],
+     "countries": [],
+     "is_corresponding": false,
+     "raw_author_name": "Kenton Lee",
+     "raw_affiliation_strings": [],
+     "raw_orcid": null,
+     "affiliations": []
+    },
+    {
+     "author_position": "last",
+     "author": {
+      "id": "https://openalex.org/A5053947885",
+      "display_name": "Kristina Toutanova",
+      "orcid": "https://orcid.org/0009-0005-3458-9049",
+      "observed_orcids": [
+       "https://orcid.org/0009-0005-3458-9049"
+      ]
+     },
+     "institutions": [],
+     "countries": [],
+     "is_corresponding": false,
+     "raw_author_name": "Kristina Toutanova",
+     "raw_affiliation_strings": [],
+     "raw_orcid": null,
+     "affiliations": []
+    }
+   ],
+   "primary_location": {
+    "id": "doi:10.18653/v1/n19-1423",
+    "doi": "https://doi.org/10.18653/v1/n19-1423",
+    "is_oa": true,
+    "landing_page_url": "https://doi.org/10.18653/v1/n19-1423",
+    "pdf_url": null,
+    "source": {
+     "id": "https://openalex.org/S4363608774",
+     "display_name": "Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT)",
+     "issn_l": null,
+     "issn": null,
+     "is_oa": false,
+     "is_in_doaj": false,
+     "is_core": false,
+     "listed_in": [],
+     "host_organization": null,
+     "host_organization_name": null,
+     "host_organization_lineage": [],
+     "host_organization_lineage_names": [],
+     "type": "conference"
+    },
+    "license": "cc-by",
+    "license_id": "https://openalex.org/licenses/cc-by",
+    "version": "publishedVersion",
+    "is_accepted": true,
+    "is_published": true,
+    "raw_source_name": "Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)",
+    "raw_type": "proceedings-article"
+   },
+   "abstract_inverted_index": {
+    "Jacob": [
+     0
+    ],
+    "Devlin,": [
+     1
+    ],
+    "Ming-Wei": [
+     2
+    ],
+    "Chang,": [
+     3
+    ],
+    "Kenton": [
+     4
+    ],
+    "Lee,": [
+     5
+    ],
+    "Kristina": [
+     6
+    ],
+    "Toutanova.": [
+     7
+    ],
+    "Proceedings": [
+     8
+    ],
+    "of": [
+     9,
+     13,
+     18
+    ],
+    "the": [
+     10,
+     14,
+     19
+    ],
+    "2019": [
+     11
+    ],
+    "Conference": [
+     12
+    ],
+    "North": [
+     15
+    ],
+    "American": [
+     16
+    ],
+    "Chapter": [
+     17
+    ],
+    "Association": [
+     20
+    ],
+    "for": [
+     21
+    ],
+    "Computational": [
+     22
+    ],
+    "Linguistics:": [
+     23
+    ],
+    "Human": [
+     24
+    ],
+    "Language": [
+     25
+    ],
+    "Technologies,": [
+     26
+    ],
+    "Volume": [
+     27
+    ],
+    "1": [
+     28
+    ],
+    "(Long": [
+     29
+    ],
+    "and": [
+     30
+    ],
+    "Short": [
+     31
+    ],
+    "Papers).": [
+     32
+    ],
+    "2019.": [
+     33
+    ]
+   },
+   "cited_by_count": 99434,
+   "biblio": {
+    "volume": null,
+    "issue": null,
+    "first_page": "4171",
+    "last_page": "4186"
+   }
+  },
+  {
+   "id": "https://openalex.org/W2896457183",
+   "doi": "https://doi.org/10.48550/arxiv.1810.04805",
+   "display_name": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+   "publication_year": 2018,
+   "publication_date": "2018-10-11",
+   "authorships": [
+    {
+     "author_position": "first",
+     "author": {
+      "id": "https://openalex.org/A5057457287",
+      "display_name": "Jacob Devlin",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I1291425158",
+       "display_name": "Google (United States)",
+       "ror": "https://ror.org/00njsd438",
+       "country_code": "US",
+       "type": "company",
+       "lineage": [
+        "https://openalex.org/I1291425158",
+        "https://openalex.org/I4210128969"
+       ]
+      }
+     ],
+     "countries": [
+      "US"
+     ],
+     "is_corresponding": false,
+     "raw_author_name": "Devlin, Jacob",
+     "raw_affiliation_strings": [
+      "Google AI Language"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Google AI Language",
+       "institution_ids": [
+        "https://openalex.org/I1291425158"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": "https://openalex.org/A5127838054",
+      "display_name": "Ming-Wei Chang",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I1291425158",
+       "display_name": "Google (United States)",
+       "ror": "https://ror.org/00njsd438",
+       "country_code": "US",
+       "type": "company",
+       "lineage": [
+        "https://openalex.org/I1291425158",
+        "https://openalex.org/I4210128969"
+       ]
+      }
+     ],
+     "countries": [
+      "US"
+     ],
+     "is_corresponding": false,
+     "raw_author_name": "Chang, Ming-Wei",
+     "raw_affiliation_strings": [
+      "Google AI Language"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Google AI Language",
+       "institution_ids": [
+        "https://openalex.org/I1291425158"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": "https://openalex.org/A5159833220",
+      "display_name": "Kenton Lee",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I1291425158",
+       "display_name": "Google (United States)",
+       "ror": "https://ror.org/00njsd438",
+       "country_code": "US",
+       "type": "company",
+       "lineage": [
+        "https://openalex.org/I1291425158",
+        "https://openalex.org/I4210128969"
+       ]
+      }
+     ],
+     "countries": [
+      "US"
+     ],
+     "is_corresponding": false,
+     "raw_author_name": "Lee, Kenton",
+     "raw_affiliation_strings": [
+      "Google AI Language"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Google AI Language",
+       "institution_ids": [
+        "https://openalex.org/I1291425158"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "last",
+     "author": {
+      "id": "https://openalex.org/A5159955724",
+      "display_name": "Kristina Toutanova",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I1291425158",
+       "display_name": "Google (United States)",
+       "ror": "https://ror.org/00njsd438",
+       "country_code": "US",
+       "type": "company",
+       "lineage": [
+        "https://openalex.org/I1291425158",
+        "https://openalex.org/I4210128969"
+       ]
+      }
+     ],
+     "countries": [
+      "US"
+     ],
+     "is_corresponding": false,
+     "raw_author_name": "Toutanova, Kristina",
+     "raw_affiliation_strings": [
+      "Google AI Language"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Google AI Language",
+       "institution_ids": [
+        "https://openalex.org/I1291425158"
+       ]
+      }
+     ]
+    }
+   ],
+   "primary_location": {
+    "id": "pmh:oai:arXiv.org:1810.04805",
+    "doi": null,
+    "is_oa": true,
+    "landing_page_url": "http://arxiv.org/abs/1810.04805",
+    "pdf_url": "https://arxiv.org/pdf/1810.04805",
+    "source": {
+     "id": "https://openalex.org/S4306400194",
+     "display_name": "arXiv (Cornell University)",
+     "issn_l": "2331-8422",
+     "issn": [
+      "2331-8422"
+     ],
+     "is_oa": true,
+     "is_in_doaj": false,
+     "is_core": false,
+     "listed_in": [],
+     "host_organization": "https://openalex.org/I205783295",
+     "host_organization_name": "Cornell University",
+     "host_organization_lineage": [
+      "https://openalex.org/I205783295"
+     ],
+     "host_organization_lineage_names": [],
+     "type": "repository"
+    },
+    "license": null,
+    "license_id": null,
+    "version": "submittedVersion",
+    "is_accepted": false,
+    "is_published": false,
+    "raw_source_name": null,
+    "raw_type": "text"
+   },
+   "abstract_inverted_index": {
+    "We": [
+     0
+    ],
+    "introduce": [
+     1
+    ],
+    "a": [
+     2,
+     46,
+     66
+    ],
+    "new": [
+     3,
+     92
+    ],
+    "language": [
+     4,
+     19,
+     76,
+     98
+    ],
+    "representation": [
+     5,
+     20
+    ],
+    "model": [
+     6,
+     51
+    ],
+    "called": [
+     7
+    ],
+    "BERT,": [
+     8
+    ],
+    "which": [
+     9
+    ],
+    "stands": [
+     10
+    ],
+    "for": [
+     11,
+     65
+    ],
+    "Bidirectional": [
+     12
+    ],
+    "Encoder": [
+     13
+    ],
+    "Representations": [
+     14
+    ],
+    "from": [
+     15,
+     30
+    ],
+    "Transformers.": [
+     16
+    ],
+    "Unlike": [
+     17
+    ],
+    "recent": [
+     18
+    ],
+    "models,": [
+     21
+    ],
+    "BERT": [
+     22,
+     50,
+     83
+    ],
+    "is": [
+     23,
+     84
+    ],
+    "designed": [
+     24
+    ],
+    "to": [
+     25,
+     61,
+     106,
+     114,
+     125,
+     136
+    ],
+    "pre-train": [
+     26
+    ],
+    "deep": [
+     27
+    ],
+    "bidirectional": [
+     28
+    ],
+    "representations": [
+     29
+    ],
+    "unlabeled": [
+     31
+    ],
+    "text": [
+     32
+    ],
+    "by": [
+     33
+    ],
+    "jointly": [
+     34
+    ],
+    "conditioning": [
+     35
+    ],
+    "on": [
+     36,
+     95
+    ],
+    "both": [
+     37
+    ],
+    "left": [
+     38
+    ],
+    "and": [
+     39,
+     75,
+     87,
+     131
+    ],
+    "right": [
+     40
+    ],
+    "context": [
+     41
+    ],
+    "in": [
+     42
+    ],
+    "all": [
+     43
+    ],
+    "layers.": [
+     44
+    ],
+    "As": [
+     45
+    ],
+    "result,": [
+     47
+    ],
+    "the": [
+     48,
+     103
+    ],
+    "pre-trained": [
+     49
+    ],
+    "can": [
+     52
+    ],
+    "be": [
+     53
+    ],
+    "fine-tuned": [
+     54
+    ],
+    "with": [
+     55
+    ],
+    "just": [
+     56
+    ],
+    "one": [
+     57
+    ],
+    "additional": [
+     58
+    ],
+    "output": [
+     59
+    ],
+    "layer": [
+     60
+    ],
+    "create": [
+     62
+    ],
+    "state-of-the-art": [
+     63,
+     93
+    ],
+    "models": [
+     64
+    ],
+    "wide": [
+     67
+    ],
+    "range": [
+     68
+    ],
+    "of": [
+     69
+    ],
+    "tasks,": [
+     70,
+     100
+    ],
+    "such": [
+     71
+    ],
+    "as": [
+     72
+    ],
+    "question": [
+     73,
+     121
+    ],
+    "answering": [
+     74,
+     122
+    ],
+    "inference,": [
+     77
+    ],
+    "without": [
+     78
+    ],
+    "substantial": [
+     79
+    ],
+    "task-specific": [
+     80
+    ],
+    "architecture": [
+     81
+    ],
+    "modifications.": [
+     82
+    ],
+    "conceptually": [
+     85
+    ],
+    "simple": [
+     86
+    ],
+    "empirically": [
+     88
+    ],
+    "powerful.": [
+     89
+    ],
+    "It": [
+     90
+    ],
+    "obtains": [
+     91
+    ],
+    "results": [
+     94
+    ],
+    "eleven": [
+     96
+    ],
+    "natural": [
+     97
+    ],
+    "processing": [
+     99
+    ],
+    "including": [
+     101
+    ],
+    "pushing": [
+     102
+    ],
+    "GLUE": [
+     104
+    ],
+    "score": [
+     105
+    ],
+    "80.5%": [
+     107
+    ],
+    "(7.7%": [
+     108
+    ],
+    "point": [
+     109,
+     128,
+     139
+    ],
+    "absolute": [
+     110,
+     117,
+     129,
+     140
+    ],
+    "improvement),": [
+     111,
+     118
+    ],
+    "MultiNLI": [
+     112
+    ],
+    "accuracy": [
+     113
+    ],
+    "86.7%": [
+     115
+    ],
+    "(4.6%": [
+     116
+    ],
+    "SQuAD": [
+     119,
+     132
+    ],
+    "v1.1": [
+     120
+    ],
+    "Test": [
+     123,
+     134
+    ],
+    "F1": [
+     124,
+     135
+    ],
+    "93.2": [
+     126
+    ],
+    "(1.5": [
+     127
+    ],
+    "improvement)": [
+     130
+    ],
+    "v2.0": [
+     133
+    ],
+    "83.1": [
+     137
+    ],
+    "(5.1": [
+     138
+    ],
+    "improvement).": [
+     141
+    ]
+   },
+   "cited_by_count": 82746,
+   "biblio": {
+    "volume": null,
+    "issue": null,
+    "first_page": null,
+    "last_page": null
+   }
+  }
+ ],
+ "group_by": []
+}

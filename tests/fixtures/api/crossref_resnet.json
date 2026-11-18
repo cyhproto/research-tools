@@ -1,0 +1,145 @@
+{
+ "status": "ok",
+ "message-type": "work-list",
+ "message-version": "1.0.0",
+ "message": {
+  "facets": {},
+  "total-results": 4727868,
+  "items": [
+   {
+    "DOI": "10.1109/cvpr.2016.90",
+    "title": [
+     "Deep Residual Learning for Image Recognition"
+    ],
+    "author": [
+     {
+      "given": "Kaiming",
+      "family": "He",
+      "sequence": "first",
+      "affiliation": [],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     },
+     {
+      "given": "Xiangyu",
+      "family": "Zhang",
+      "sequence": "additional",
+      "affiliation": [],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     },
+     {
+      "given": "Shaoqing",
+      "family": "Ren",
+      "sequence": "additional",
+      "affiliation": [],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     },
+     {
+      "given": "Jian",
+      "family": "Sun",
+      "sequence": "additional",
+      "affiliation": [],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2016,
+       6
+      ]
+     ]
+    },
+    "container-title": [
+     "2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)"
+    ],
+    "page": "770-778",
+    "abstract": "<jats:p>Deeper neural networks are more difficult to train. We present a residual learning framework to ease the training of networks that are substantially deeper than those used previously.</jats:p>"
+   },
+   {
+    "DOI": "10.3390/app12188972",
+    "title": [
+     "Deep Residual Learning for Image Recognition: A Survey"
+    ],
+    "author": [
+     {
+      "given": "Muhammad",
+      "family": "Shafiq",
+      "sequence": "first",
+      "affiliation": [
+       {
+        "name": "Cyberspace Institute of Advanced Technology, Guangzhou University, Guangzhou 510006, China"
+       }
+      ],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     },
+     {
+      "ORCID": "https://orcid.org/0000-0001-7546-852X",
+      "authenticated-orcid": false,
+      "given": "Zhaoquan",
+      "family": "Gu",
+      "sequence": "additional",
+      "affiliation": [
+       {
+        "name": "Department of New Networks, Peng Cheng Laboratory, Shenzhen 518055, China"
+       },
+       {
+        "name": "Department of Computer Science and Technology, Harbin Institute of Technology, Shenzhen 518055, China"
+       }
+      ],
+      "role": [
+       {
+        "vocabulary": "crossref",
+        "role": "author"
+       }
+      ]
+     }
+    ],
+    "issued": {
+     "date-parts": [
+      [
+       2022,
+       9,
+       7
+      ]
+     ]
+    },
+    "container-title": [
+     "Applied Sciences"
+    ],
+    "abstract": "<jats:p>Deep Residual Networks have recently been shown to significantly improve the performance of neural networks trained on ImageNet, with results beating all previous methods on this dataset by large margins in the image classification task. However, the meaning of these impressive numbers and their implications for future research are not fully understood yet. In this survey, we will try to explain what Deep Residual Networks are, how they achieve their excellent results, and why their successful implementation in practice represents a significant advance over existing techniques. We also discuss some open questions related to residual learning as well as possible applications of Deep Residual Networks beyond ImageNet. Finally, we discuss some issues that still need to be resolved before deep residual learning can be applied on more complex problems.</jats:p>",
+    "volume": "12",
+    "page": "8972"
+   }
+  ],
+  "items-per-page": 3,
+  "query": {
+   "start-index": 0,
+   "search-terms": null
+  }
+ }
+}
