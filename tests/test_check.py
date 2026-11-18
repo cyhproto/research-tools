@@ -184,3 +184,44 @@ def test_finalize_empty_object_rulings_count_as_missing(tmp_path, capsys):
     assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 1
     cap = capsys.readouterr()
     assert json.loads(cap.out)["rulings_missing"] is True and "missing or empty" in cap.err
+
+
+# --- P21: a number from the abstract of a paper cited in the same sentence ---------------
+
+def _set_abstract(p, key, text):
+    lib = json.loads((p / "references/library.json").read_text())
+    for e in lib:
+        if e["key"] == key:
+            e["abstract"] = text
+    (p / "references/library.json").write_text(json.dumps(lib))
+
+ABSTRACT = "We study deep methods for benchmark X and reach 92.4% accuracy."
+
+def _numbers(items):
+    return [i for i in items if i.category == "numbers"]
+
+def test_number_from_cited_abstract_passes(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace(
+        "## Conclusion", "Deep methods reach 92.4%\non X [@Kim2024Own; @Smith2023Deep].\n\n## Conclusion"))
+    _set_abstract(p, "Smith2023Deep", ABSTRACT)
+    [it] = _numbers(run_check(p, root))
+    assert it.status == "pass" and it.data["key"] == "Smith2023Deep" and it.data["token"] == "92.4%"
+    assert "from the abstract of [@Smith2023Deep]" in it.message
+    out = finalize(p, {})
+    assert out["ready"] and "from the abstract of [@Smith2023Deep]" in (p / "review.md").read_text()
+
+def test_number_missing_from_cited_abstract_stays_unmatched(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "Deep methods reach 93.5% on X [@Smith2023Deep].\n\n## Conclusion"))
+    _set_abstract(p, "Smith2023Deep", ABSTRACT)
+    assert [(i.status, i.data["token"]) for i in _numbers(run_check(p, root))] == [("needs_ruling", "93.5%")]
+
+def test_number_in_abstract_of_entry_cited_elsewhere_stays_unmatched(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace(
+        "## Conclusion", "Deep methods reach 92.4% on X [@Kim2024Own]. They are fast [@Smith2023Deep].\n\n## Conclusion"))
+    _set_abstract(p, "Smith2023Deep", ABSTRACT)
+    assert [i.status for i in _numbers(run_check(p, root))] == ["needs_ruling"]
+
+def test_number_cited_to_title_only_entry_stays_unmatched(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "Lee et al. report 92.4% accuracy [@Lee2022Graph].\n\n## Conclusion"))
+    _set_abstract(p, "Smith2023Deep", ABSTRACT)
+    assert [i.status for i in _numbers(run_check(p, root))] == ["needs_ruling"]

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .cli import common_parent, emit
 from .library import load_library
-from .numbers import unmatched
+from .numbers import matches, materials_numbers, unmatched
 from .paper import H2_RE, LINE_RE, fence_tags, section_name, split_sections
 from .references import BRACKET_RE, KEY_RE, cited_keys
 from .settings import load_settings
@@ -97,6 +97,29 @@ def _blocks(md: str) -> list[list[tuple[int, str]]]:
     return blocks
 
 
+def _sentence_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of each sentence in a block of prose text."""
+    spans, pos = [], 0
+    for m in _SENT_RE.finditer(text):
+        spans.append((pos, m.start()))
+        pos = m.end()
+    spans.append((pos, len(text)))
+    return spans
+
+
+def _sentence_index(md: str) -> dict[int, tuple[str, int, list[tuple[int, int]]]]:
+    """Per prose line number: (its block's text, the line's offset in it, the block's sentence spans)."""
+    index = {}
+    for block in _blocks(md):
+        text = "\n".join(l for _, l in block)
+        spans = _sentence_spans(text)
+        off = 0
+        for n, l in block:
+            index[n] = (text, off, spans)
+            off += len(l) + 1
+    return index
+
+
 def _first_line(md: str, needle: str) -> int | None:
     for n, line in _prose_lines(md):
         if needle in line:
@@ -173,11 +196,7 @@ def _check_citations(md, lib, items: _Items) -> None:
         offs = [0]
         for _, l in block:
             offs.append(offs[-1] + len(l) + 1)
-        spans, pos = [], 0
-        for m in _SENT_RE.finditer(text):
-            spans.append((pos, m.start()))
-            pos = m.end()
-        spans.append((pos, len(text)))
+        spans = _sentence_spans(text)
         seen = set()
         for g in BRACKET_RE.finditer(text):
             for key in KEY_RE.findall(g.group(1)):
@@ -202,9 +221,36 @@ def _check_numbers(md, paper_dir, lib, settings, items: _Items) -> None:
         years.add(int(settings.cutoff[:4]))
     except ValueError:
         pass
+    entries = {e.key: e for e in lib}
+    line_starts = [0]
+    for line in LINE_RE.findall(md):
+        line_starts.append(line_starts[-1] + len(line))
+    index = _sentence_index(md)
     for h in unmatched(_mask_for_numbers(md), _materials_texts(paper_dir), years):
-        items.add("numbers", "needs_ruling", h.line_no, f"number {h.num.token} not found in the materials",
-                  {"token": h.num.token, "context": h.context, "line": h.line_no})
+        data = {"token": h.num.token, "context": h.context, "line": h.line_no}
+        key = _cited_abstract_with(h, line_starts, index, entries)
+        if key is not None:
+            items.add("numbers", "pass", h.line_no,
+                      f"number {h.num.token} is from the abstract of [@{key}], cited in the same sentence",
+                      {**data, "key": key})
+        else:
+            items.add("numbers", "needs_ruling", h.line_no, f"number {h.num.token} not found in the materials",
+                      data)
+
+
+def _cited_abstract_with(h, line_starts: list[int], index: dict, entries: dict) -> str | None:
+    """Key of a library entry cited in the number's sentence whose abstract holds the same number."""
+    if h.line_no not in index:
+        return None
+    text, off, spans = index[h.line_no]
+    pos = off + h.num.start - line_starts[h.line_no - 1]
+    sentence = next((text[s:t] for s, t in spans if s <= pos <= t), "")
+    for g in BRACKET_RE.finditer(sentence):
+        for key in KEY_RE.findall(g.group(1)):
+            e = entries.get(key)
+            if e is not None and e.abstract and matches(h.num, materials_numbers([e.abstract])):
+                return key
+    return None
 
 
 def _embedded(md: str, entry: dict, paper_dir: Path) -> bool:
@@ -331,9 +377,11 @@ def _write_check_section(paper_dir: Path, body: str) -> None:
 def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
     items = _load_report(paper_dir)
     rulings = rulings if isinstance(rulings, dict) else {}
-    problems, warns, allowed = [], [], []
+    problems, warns, allowed, passed = [], [], [], []
     for i in items:
-        if i.status == "needs_ruling":
+        if i.status == "pass":
+            passed.append(i)
+        elif i.status == "needs_ruling":
             r = rulings.get(i.id)
             r = r if isinstance(r, dict) else {}
             if r.get("ruling") == "allow":
@@ -361,6 +409,7 @@ def finalize(paper_dir: Path, rulings: dict[str, dict]) -> dict:
     lines += [f"- ALLOWED {_where(i)}: {i.message}.{detail(r)}" for i, r in allowed]
     if not (problems or warns or allowed):
         lines.append("No problems found.")
+    lines += [f"- PASS {_where(i)}: {i.message}." for i in passed]
     _write_check_section(paper_dir, "\n".join(lines))
     return {"ready": not problems, "problems": len(problems), "status_line": status_line,
             "needs_ruling": sum(1 for i in items if i.status == "needs_ruling")}
