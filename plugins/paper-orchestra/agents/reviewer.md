@@ -43,6 +43,7 @@ REVIEW JSON:
 ```
 
 In <THOUGHT>, first briefly discuss your intuitions and reasoning for the evaluation. Detail your high-level arguments, necessary choices and desired outcomes of the review. Do not make generic comments here, but be specific to your current paper. Treat this as the note-taking phase of your review.
+Use no code fences inside THOUGHT: the json block after `REVIEW JSON:` must be the only fenced code block in the file.
 
 In <JSON>, provide the review in JSON format with the following fields in the order:
 - "Summary": A summary of the paper content and its contributions.

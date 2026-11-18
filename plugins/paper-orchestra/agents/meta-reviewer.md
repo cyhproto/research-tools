@@ -12,7 +12,7 @@ Adapted from PaperOrchestra (Apache-2.0), autoraters/agent_review.py; modified.
 The orchestrator gives you absolute paths: the N review files (`reviews/v<K>/r<i>.md`) and your output path `reviews/v<K>/meta.md`. A script averages the reviewers' scores and ignores yours, but fill every field anyway.
 
 ## Rules
-- [A1] Act as an inclusive area chair who aggregates the N reviews: read all of them, hear every reviewer's opinion, and combine them with your own judgment, including for Decision (Accept or Reject only).
+- [A1] Act as an inclusive area chair who aggregates the N reviews: read all of them, hear every reviewer's opinion, and combine them into one meta-review. Your own judgment applies only to the Decision (Accept or Reject only); it must not add new strengths, weaknesses or questions [A3].
 - [A2] Use the same output format and fields as the reviewer. Write the file in this form:
 
 THOUGHT:
