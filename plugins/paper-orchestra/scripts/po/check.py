@@ -1,4 +1,5 @@
 """Check stage: find citation, number, figure and venue problems, then merge the checker's rulings."""
+import hashlib
 import json
 import re
 import sys
@@ -351,8 +352,12 @@ def _check_venue(md, paper_dir, settings, items: _Items) -> None:
 
 
 def run_check(paper_dir: Path, project_root: Path) -> list[CheckItem]:
+    """Check paper.md and write check/report.json. The old report is deleted first, so a run that
+    fails leaves none for `finalize` to report from."""
     paper_dir = Path(paper_dir)
-    md = (paper_dir / "paper.md").read_text(encoding="utf-8")
+    report_path(paper_dir).unlink(missing_ok=True)
+    raw = (paper_dir / "paper.md").read_bytes()
+    md = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")  # as read_text() reads it
     lib = load_library(paper_dir)
     settings = load_settings(paper_dir)
     items = _Items()
@@ -362,7 +367,7 @@ def run_check(paper_dir: Path, project_root: Path) -> list[CheckItem]:
     _check_venue(md, paper_dir, settings, items)
     _check_reference_text(md, items)
     built = items.build()
-    write_report(paper_dir, built)  # finalize reads check/report.json
+    write_report(paper_dir, built, _sha256(raw))  # finalize reads check/report.json
     return built
 
 
@@ -370,17 +375,40 @@ def _counts(items: list[CheckItem]) -> dict:
     return {s: sum(1 for i in items if i.status == s) for s in STATUSES}
 
 
-def write_report(paper_dir: Path, items: list[CheckItem]) -> Path:
-    path = Path(paper_dir) / "check" / "report.json"
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def report_path(paper_dir: Path) -> Path:
+    return Path(paper_dir) / "check" / "report.json"
+
+
+def write_report(paper_dir: Path, items: list[CheckItem], paper_sha256: str) -> Path:
+    """paper_sha256 is the hash of the paper.md bytes the items were found in."""
+    path = report_path(paper_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"counts": _counts(items), "items": [asdict(i) for i in items]},
-                               ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps({"counts": _counts(items), "paper_sha256": paper_sha256,
+                                "items": [asdict(i) for i in items]}, ensure_ascii=False, indent=2),
+                    encoding="utf-8")
     return path
 
 
+class StaleReport(Exception):
+    """check/report.json is missing, unreadable, or was made from another paper.md."""
+
+
 def _load_report(paper_dir: Path) -> list[CheckItem]:
-    data = json.loads((Path(paper_dir) / "check" / "report.json").read_text(encoding="utf-8"))
-    return [CheckItem(**d) for d in data["items"]]
+    path, pm = report_path(paper_dir), Path(paper_dir) / "paper.md"
+    if not path.is_file():
+        raise StaleReport(f"{path} is missing; run `po check run` first")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        items = [CheckItem(**d) for d in data["items"]]
+    except (ValueError, TypeError, KeyError) as e:
+        raise StaleReport(f"{path} is not a Check report ({e}); run `po check run` again") from e
+    if not pm.is_file() or data.get("paper_sha256") != _sha256(pm.read_bytes()):
+        raise StaleReport(f"paper.md changed after `po check run` made {path}; run `po check run` again")
+    return items
 
 
 def _where(i: CheckItem) -> str:
@@ -445,8 +473,7 @@ def _cmd_run(args) -> int:
     paper = Path(args.paper)
     project = Path(args.project) if args.project else paper.resolve().parent
     items = run_check(paper, project)
-    path = write_report(paper, items)
-    emit({**_counts(items), "report": str(path)})
+    emit({**_counts(items), "report": str(report_path(paper))})
     return 0
 
 
@@ -459,15 +486,15 @@ def _cmd_finalize(args) -> int:
             try:
                 rulings = json.loads(text)
             except ValueError as e:
-                emit({"error": f"rulings file is not valid JSON: {e}"})
+                print(f"check finalize: rulings file {args.rulings} is not valid JSON: {e}", file=sys.stderr)
                 return 2
             if not isinstance(rulings, dict):
-                emit({"error": "rulings file must hold a JSON object"})
+                print(f"check finalize: rulings file {args.rulings} must hold a JSON object", file=sys.stderr)
                 return 2
     try:
         out = finalize(paper, rulings)
-    except FileNotFoundError:
-        emit({"error": "check/report.json is missing; run `po check run` first"})
+    except StaleReport as e:
+        print(f"check finalize: {e}", file=sys.stderr)
         return 2
     # a wrong or empty rulings path must never pass silently
     out["rulings_missing"] = bool(out["needs_ruling"]) and not rulings

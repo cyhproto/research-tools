@@ -14,7 +14,7 @@ You run a seven-stage pipeline that drafts a Markdown paper in `<project>/paper/
    - `PO` = `python3 $SCRIPTS/po.py`;
    - `PAPER` = `<cwd>/paper`, where cwd is the project root when the skill starts.
 2. Shell variables do not persist between Bash calls: write the absolute values into every command. Run every command from the project root, so the CLI's default `--paper paper` is `$PAPER`; never pass `--paper`. File arguments (`--from`, `--rulings`, `--candidate`, `--map`, `--pre`, `--out`) are always absolute `$PAPER/...` paths, because relative ones resolve against the cwd.
-3. Every `$PO` command prints one JSON object. Exit 0 = ok, 1 = problems (in the JSON), 2 = usage or config error (stderr says why). Show the user any `warnings` in that JSON. For example, `paper references` warns when text under `## References` is not a reference entry: it keeps that text after the list and asks the user to give it its own heading.
+3. Every `$PO` command prints one JSON object. Exit 0 = ok, 1 = problems (in the JSON), 2 = the command could not run: a usage or config error, or an unexpected failure such as an unreadable file (stderr says why). Show the user any `warnings` in that JSON. For example, `paper references` warns when text under `## References` is not a reference entry: it keeps that text after the list and asks the user to give it its own heading.
 4. Run `$PO doctor`. If it exits 2 or `python_ok` is false, say that Python 3.10 or newer is required and stop. Otherwise show `problems` and `next_steps` once; they do not block (a missing plot Python only stops figure building).
 5. Run `$PO state show`: each stage's status (`pending`, `running`, `done`, `failed`), `stale`, `tasks_done`, `next_stage`, `warnings`. Show any warnings. If one says `.state.json` was unreadable and moved aside, also tell the user what that costs: the record of which text the tool wrote is gone, so all of `paper.md`, earlier tool text included, now counts as their own, and the next write or lit-review asks per section before replacing any of it.
 
@@ -240,9 +240,9 @@ Every reviewer, meta-reviewer and reviser output file is a checkpoint, through i
 ## 9. Check
 
 1. Delete `$PAPER/check/rulings.json` if present; old rulings could match new item ids.
-2. Run `$PO check run`. It writes `check/report.json` with counts of `fail`, `warn` and `needs_ruling`.
+2. Run `$PO check run`. It writes `check/report.json` with counts of `fail`, `warn` and `needs_ruling`. Exit 2 means Check could not run, for example on an unreadable `references/library.json` or a style that is not found, and no report is left: show stderr, mark check failed and stop (§3).
 3. If `needs_ruling` > 0, dispatch `checker`.
-4. Run `$PO check finalize --rulings $PAPER/check/rulings.json`. Exit 0 means READY; 1 means NOT READY. If `rulings_missing` is true after the checker ran, re-dispatch the checker once and finalize again.
+4. Run `$PO check finalize --rulings $PAPER/check/rulings.json`. Exit 0 means READY; 1 means NOT READY. If `rulings_missing` is true after the checker ran, re-dispatch the checker once and finalize again. Exit 2 means there is no report to finalize: it is missing, or `paper.md` changed after `check run` (stderr says which). Show stderr, mark check failed and stop; a new `/paper-orchestra check` makes a fresh report.
 5. Print `status_line`, then list the FAIL lines from `## Check` in `review.md`. Run `$PO state mark check done`.
 
 ## 10. Status and stale stages

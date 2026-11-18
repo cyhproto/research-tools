@@ -40,13 +40,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+    """Run one command: exit 0 = ok, 1 = problems found (in the JSON), 2 = cannot run (stderr says why).
+
+    An unexpected exception is a "cannot run" too: it prints `<Type>: <message>` on stderr and
+    returns 2, never a traceback and never 1, which callers read as a normal outcome."""
     try:
-        args = parser.parse_args(argv)
-    except SystemExit as e:
-        return e.code if isinstance(e.code, int) else 2
-    func = getattr(args, "func", None)
-    if func is None:
-        parser.print_usage(sys.stderr)
+        parser = build_parser()
+        try:
+            args = parser.parse_args(argv)
+        except SystemExit as e:
+            return e.code if isinstance(e.code, int) else 2
+        func = getattr(args, "func", None)
+        if func is None:
+            parser.print_usage(sys.stderr)
+            return 2
+        return int(func(args) or 0)
+    except Exception as e:
+        print(f"{type(e).__name__}: {e}", file=sys.stderr)
         return 2
-    return int(func(args) or 0)

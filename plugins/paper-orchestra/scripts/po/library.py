@@ -410,12 +410,20 @@ def save_library(paper_dir, result: VerifyResult, task_files=None) -> None:
         task_done(paper_dir, f"lit:{tid}")
 
 
+class LibraryError(ValueError):
+    """references/library.json cannot be read (for example after a hand edit)."""
+
+
 def load_library(paper_dir) -> list[LibraryEntry]:
     p = Path(paper_dir) / "references" / "library.json"
     if not p.is_file():
         return []
     names = {f.name for f in dataclasses.fields(LibraryEntry)}
-    return [LibraryEntry(**{k: v for k, v in e.items() if k in names}) for e in json.loads(p.read_text(encoding="utf-8"))]
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return [LibraryEntry(**{k: v for k, v in e.items() if k in names}) for e in data]
+    except (ValueError, TypeError, AttributeError) as e:
+        raise LibraryError(f"{p} is not a valid library ({e}); fix the file by hand") from e
 
 
 def _load_log(paper_dir) -> dict | None:

@@ -251,3 +251,77 @@ def test_reference_exports_are_not_materials(tmp_path):
     (refs / "notes.md").write_text("Numbers 91.7 and 3.42 copied from a PDF.\n")
     got = {i.data["token"]: i.status for i in run_check(p, root) if i.category == "numbers"}
     assert got == {"91.7": "needs_ruling", "3.42": "needs_ruling"}
+
+
+# --- I1 / P32: a crash exits 2; Check never reports from a stale run ---------------------
+
+def _break_library(p):
+    lib = p / "references/library.json"
+    lib.write_text(lib.read_text().rstrip().rstrip("]") + ",]")  # a trailing comma, as a hand edit might leave
+
+
+def _missing_style(p):
+    (p / "style.md").unlink()
+    (p / "settings.md").write_text((p / "settings.md").read_text().replace("ml-conference", "my-venue"))
+
+
+import pytest
+
+
+@pytest.mark.parametrize("breakage", [_break_library, _missing_style])
+def test_failed_check_run_exits_2_and_leaves_no_report(tmp_path, capsys, breakage):
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "We reach 99.9 [@Fake2024Paper].\n\n## Conclusion"))
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    capsys.readouterr()
+    breakage(p)
+    assert main(["check", "run", "--paper", str(p)]) == 2
+    cap = capsys.readouterr()
+    assert cap.out == "" and "Traceback" not in cap.err and cap.err.count("\n") == 1
+    assert cap.err.split(":")[0] in ("LibraryError", "StyleNotFound")
+    assert ("library.json" if breakage is _break_library else "my-venue") in cap.err
+    assert not (p / "check/report.json").exists()
+    assert main(["check", "finalize", "--paper", str(p)]) == 2
+    cap = capsys.readouterr()
+    assert cap.out == "" and "check run" in cap.err
+    assert not (p / "review.md").exists()
+
+
+def test_finalize_refuses_a_report_older_than_paper_md(tmp_path, capsys):
+    p, root = setup(tmp_path)
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    assert finalize(p, {})["ready"]
+    (p / "review.md").unlink()
+    md = p / "paper.md"
+    md.write_text(md.read_text().replace("## Conclusion", "We reach 99.9 [@Fake2024Paper].\n\n## Conclusion"))
+    capsys.readouterr()
+    assert main(["check", "finalize", "--paper", str(p)]) == 2
+    cap = capsys.readouterr()
+    assert cap.out == "" and "paper.md changed" in cap.err
+    assert not (p / "review.md").exists()
+    # a report without the paper.md hash (an older one) is not trusted either
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    rep = p / "check/report.json"
+    data = json.loads(rep.read_text())
+    assert len(data.pop("paper_sha256")) == 64
+    rep.write_text(json.dumps(data))
+    assert main(["check", "finalize", "--paper", str(p)]) == 2
+
+
+def test_finalize_errors_go_to_stderr(tmp_path, capsys):
+    p, root = setup(tmp_path)
+    assert main(["check", "run", "--paper", str(p)]) == 0
+    capsys.readouterr()
+    rf = tmp_path / "r.json"
+    for bad in ("{oops", "[1]"):
+        rf.write_text(bad)
+        assert main(["check", "finalize", "--paper", str(p), "--rulings", str(rf)]) == 2
+        cap = capsys.readouterr()
+        assert cap.out == "" and "rulings file" in cap.err
+
+
+def test_main_turns_any_exception_into_exit_2(monkeypatch, capsys):
+    import po.cli as cli
+    monkeypatch.setattr(cli, "COMMAND_MODULES", cli.COMMAND_MODULES + ["no_such_module"])
+    assert cli.main(["version"]) == 2
+    cap = capsys.readouterr()
+    assert cap.out == "" and cap.err.startswith("ModuleNotFoundError: ") and "Traceback" not in cap.err
