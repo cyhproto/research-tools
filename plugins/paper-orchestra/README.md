@@ -15,7 +15,7 @@ Update later with:
 /plugin marketplace update research-tools
 ```
 
-Plugin commands may appear namespaced, for example `/paper-orchestra:paper-orchestra`; type `/paper-orchestra` and pick what the menu shows.
+The command is `/paper-orchestra`. Claude Code resolves it to the plugin's skill, whose full name `/paper-orchestra:paper-orchestra` runs the same command.
 
 ## Requirements
 
@@ -103,7 +103,14 @@ A full run is heavy: dozens of search tasks, a critic loop per figure, and many 
 
 The literature budget is set when the outline is planned. Switching to `light` after the outline changes the critic, reviewer and revision counts but not the literature budget; the tool offers to re-plan the outline under the new profile.
 
-Measured usage on the sample run: _to be filled in by the end-to-end test_
+Measured usage on the sample run (the TSAM example from the original project, `full` profile, Claude Code 2.1.327; Opus at effort `xhigh` for the session and most agents, Sonnet for the literature scouts and figure critics):
+
+- running time: 32 minutes over three invocations, not counting the two pauses;
+- 39 agent runs: 6 literature scouts, 10 figure builds and 10 critic rounds for 4 figures, 6 reviewer and 2 meta-reviewer runs, 1 revision, and one each of the planner, the two writers and the checker;
+- about 16 million tokens, mostly cache reads: 13.4 million cache reads, 1.6 million cache writes, 1.0 million other input (mostly web search results) and 0.44 million output;
+- Claude Code's estimate at API list prices: about $18. A subscription does not bill this; it shows the scale.
+
+That review stopped after one round, because the revision scored lower and was undone. Each further round adds about 12 minutes and 1.5 million tokens.
 
 **If you hit a usage limit**, the run stops with finished work kept. Wait for the limit to reset, then run `/paper-orchestra` again. It continues from the last finished piece (a batch of searches, a figure, a review, a revision) and never redoes finished work.
 

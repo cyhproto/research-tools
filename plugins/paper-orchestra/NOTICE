@@ -14,3 +14,5 @@ Modifications:
 - the reviser works on a marked draft in both hand-edit modes
 - the literature scout receives the broader project problem
 - the Check stage replaces the PDF compile and format loop
+
+tests/fixtures/tsam is derived from frontend/examples/cvpr_example.json of PaperOrchestra (Apache-2.0).

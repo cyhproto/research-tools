@@ -1,0 +1,1 @@
+- tsam_overview.png: Overview of TSAM. Left: TSAM integrates multimodal cues from diverse inputs, leveraging the prompting modules to guide segmentation. Right: The temporal branch fuses multimodal cues and learns temporal context for segmentation in audio-visual scenes. The adapter input, F̂a, is the output from the cached memory.

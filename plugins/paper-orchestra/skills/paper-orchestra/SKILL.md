@@ -20,7 +20,7 @@ You run a seven-stage pipeline that drafts a Markdown paper in `<project>/paper/
 
 ## 2. Arguments
 
-Read them from the user's command: `/paper-orchestra [stage] [options]`.
+Read them from the user's command: `/paper-orchestra [stage] [options]`. The full name `/paper-orchestra:paper-orchestra` is the same command; the stage and options are its arguments.
 
 - No stage: run or resume `next_stage` (if it is stale, follow §10 first), then repeat with the new `next_stage` until a pause, a stop, or no stage is left.
 - `gather | outline | lit-review | figures | write | review | check`: run only that stage (`lit-review` is the state stage `literature`), then report stale dependants (§10). `status`: report only (§10).
