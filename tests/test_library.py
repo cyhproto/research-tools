@@ -255,3 +255,15 @@ def test_kept_entries_are_rechecked_against_an_earlier_cutoff():
     assert second.dropped == [{"title": "Late Paper", "task_id": "t2", "reason": "after-cutoff"}]
     assert sorted(second.resolved.values()) == sorted(e.key for e in second.entries if not e.must_cite)
     assert second.counts["dropped_by_reason"] == {"after-cutoff": 1}
+
+
+# ---- P39: a user-library entry is checked against the cutoff when it is admitted ------------
+def test_user_library_entry_after_the_cutoff_is_dropped_at_once():
+    imp = [ImportedRef("k1", "Only In Zotero Late", ["Z Z"], 2025, None, "J", "late abs", "library.bib"),
+           ImportedRef("k2", "Only In Zotero Undated", ["Z Z"], None, None, "J", "undated abs", "library.bib")]
+    cands = [C("Only In Zotero Late"), C("Only In Zotero Undated")]
+    first = verify_candidates(cands, imp, FakeLookup(), "2024-11")
+    assert [e.title for e in first.entries] == ["Only In Zotero Undated"]
+    assert first.dropped == [{"title": "Only In Zotero Late", "task_id": "t1", "reason": "after-cutoff"}]
+    second = verify_candidates(cands, imp, FakeLookup(), "2024-11", previous=first)  # keep the library
+    assert [e.title for e in second.entries] == ["Only In Zotero Undated"] and second.dropped == first.dropped

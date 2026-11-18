@@ -233,6 +233,8 @@ def _verify_one(cand: Candidate, imports: list[ImportedRef], lookup, cutoff: str
     if outside:
         return None, "after-cutoff"
     if imp is not None:
+        if not within_cutoff(None, imp.year, cutoff):  # as _recheck_cutoff judges it; undated passes
+            return None, "after-cutoff"
         rec = PaperRecord(imp.title, imp.authors, imp.year, None, imp.venue, None, None, None,
                           imp.doi, imp.abstract, 0, {}, "import")
         return _entry_from_record(rec, cand, imp, imp.abstract, "import", "user-library"), None
