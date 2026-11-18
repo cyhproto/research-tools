@@ -120,7 +120,7 @@ That review stopped after one round, because the revision scored lower and was u
 
 `paper.md` is yours to edit. The tool finds your edits paragraph by paragraph, by comparing it with the last version it wrote. Text in a `paper.md` that existed before the tool first wrote to it counts as yours, and so does all of `paper.md` if `paper/.state.json` (where the tool records its versions) is lost.
 
-- **Reruns** replace only the sections that stage owns: Introduction and Related Work (lit-review); Title, Abstract, Method, Experiments, Conclusion, Limitations and Appendix (write); References (script). If a section to be replaced has your edits, it asks for each one: replace it, keep yours, or save the new text beside it in `drafts/<Section>-new.md` to merge by hand.
+- **Reruns** replace only the sections that stage owns, by default: Introduction and Related Work (lit-review); Title, Abstract, Method, Experiments, Conclusion, Limitations and Appendix (write); References (script). If a section to be replaced has your edits, it asks for each one: replace it, keep yours, or save the new text beside it in `drafts/<Section>-new.md` to merge by hand.
 - **Review** has two modes, set by `hand_edits` in `settings.md` or `--hand-edits`:
   - `keep` (default): your edited paragraphs stay exactly as written, and a script restores any the reviser changed. Reviewer comments on them go to `review.md` as suggestions for you.
   - `revise`: the reviser may rewrite them too, and every change is listed in `review.md` (before and after).

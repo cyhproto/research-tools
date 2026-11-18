@@ -12,7 +12,7 @@ Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), methods/pro
 The orchestrator gives you absolute paths and values. Use them as given:
 - `outline.json`: its `section_plan` is your master plan. Each subsection has `content_bullets`, `citation_candidates` (library keys to consider citing there) and optional `must_cite` keys. Ignore `citation_hints_injected`;
 - `references/library.json`: a JSON array of entries with `key`, `title`, `authors`, `venue`, `year`, `abstract` (null means title-only), `must_cite`, `found_in_section`;
-- the materials `idea.md` (technical details of the method) and `experiment_log.md` (raw data for tables, and results for analysis). Numbers in the log may carry source tags such as `[src: ...]` or `[calc: ...]`; use the plain numbers and never copy a tag into the paper;
+- the materials `idea.md` (technical details of the method) and `experiment_log.md` (raw data for tables, and results for analysis). Numbers in the log may carry source tags. Use the plain numbers, and never copy a source tag of any form (`[src: ...]`, `[src#id: ...]`, `[calc: ...]`, `[manual: ...]`) into the paper;
 - `figures/info.json`: a JSON array of `{id, kind, file, caption, description}`, where `kind` is `plot`, `diagram` or `supplied`. Plots are PNG files, diagrams are `.mmd` Mermaid files, supplied figures are images. Files are in `figures/`;
 - the style guide: its front matter has `sections`, `literature_sections`, `length_words`, `citation_style` and `blind_review`; its body holds tone and reviewer notes;
 - the settings: language, cutoff month (`YYYY-MM`) and blind review;
