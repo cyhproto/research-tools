@@ -11,6 +11,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# A citation key as pandoc reads it: a letter, digit or _ first and last, and in between also the
+# punctuation :.#$%&-+?<>~/ (so DBLP keys such as DBLP:conf/nips/VaswaniSPUJGKP17 work).
+CITATION_KEY = r"\w(?:[\w:.#$%&\-+?<>~/]*\w)?"
+_CITATION_KEY_RE = re.compile(CITATION_KEY)
+
+
 @dataclass
 class ImportedRef:
     key: str
@@ -341,4 +347,10 @@ def load_imports(paper_dir: Path) -> dict:
                 refs, warns = parser(txt, p.name)
                 out[slot].extend(refs)
                 out["warnings"].extend(warns)
+    for r in out["must_cite"]:  # kept verbatim as citation keys; library keys are generated instead
+        if r.key and not _CITATION_KEY_RE.fullmatch(r.key):
+            out["warnings"].append(
+                f"{r.source_file}: must-cite key {r.key!r} cannot be cited as [@key]: a key must start and end "
+                "with a letter, digit or _, with only those and :.#$%&-+?<>~/ in between. Rename it in your "
+                "reference manager and export again")
     return out

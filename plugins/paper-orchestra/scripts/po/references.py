@@ -1,11 +1,15 @@
 """Citation keys in paper.md and the generated References section."""
 import re
+from collections.abc import Container
 
+from .bibimport import CITATION_KEY
 from .paper import Section, assemble, detect_eol, ensure_blank, fence_tags, split_sections
 
 BRACKET_RE = re.compile(r"\[([^\[\]]*@[^\[\]]*)\]")
-KEY_RE = re.compile(r"(?<![\w@])@(\w(?:[\w:.\-]*\w)?)")
+KEY_RE = re.compile(rf"(?<![\w@])@({CITATION_KEY})")  # not after a word: Recall@10, me@x.org
 INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+# where a bare @word is not a citation: HTML comments, URLs and link targets
+_NOT_BARE_RE = re.compile(r"<!--.*?(?:-->|\Z)|<https?://[^>\s]*>|https?://\S+|\]\([^)\n]*\)", re.S)
 DOI_PREFIX_RE = re.compile(r"^(https?://(dx\.)?doi\.org/|doi:\s*)", re.I)
 ENTRY_RE = re.compile(r"^- \[@[^\[\]]+\]")  # a generated reference entry: "- [@key] Authors. (year). ..."
 MAX_AUTHORS = 6
@@ -47,12 +51,41 @@ def _prose(md: str) -> str:
     return "\n".join(INLINE_CODE_RE.sub("", l) for l, t in zip(lines, fence_tags(lines)) if t is None)
 
 
-def cited_keys(md: str) -> list[str]:
+def _blank(text: str, pattern: re.Pattern) -> str:
+    return pattern.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), text)
+
+
+def citations(text: str) -> list[tuple[int, str, bool]]:
+    """(position, key, bracketed) of each `@key` in a stretch of prose, in order of position.
+
+    bracketed: inside a bracketed citation `[...@key...]`. The others are bare `@key`s, pandoc's
+    narrative citations, outside inline code, HTML comments, URLs and link targets; they cite only
+    when the key is a library key. Fenced code is the caller's business."""
+    text = _blank(text, INLINE_CODE_RE)
+    groups = list(BRACKET_RE.finditer(text))
+    found = [(g.start(), k, True) for g in groups for k in KEY_RE.findall(g.group(1))]
+    bare = _blank(text, _NOT_BARE_RE)
+    for g in groups:
+        bare = bare[:g.start()] + " " * len(g.group(0)) + bare[g.end():]
+    found += [(m.start(), m.group(1), False) for m in KEY_RE.finditer(bare)]
+    return sorted(found, key=lambda f: f[0])
+
+
+def cited_keys(md: str, library: Container[str] | None = None) -> list[str]:
+    """Keys cited in md, in order of first appearance: every key of a bracketed citation, and, when
+    the library's keys are given, every bare `@key` that is one of them."""
     seen: dict[str, None] = {}
-    for group in BRACKET_RE.findall(_prose(md)):
-        for k in KEY_RE.findall(group):
+    for _, k, bracketed in citations(_prose(md)):
+        if bracketed or (library is not None and k in library):
             seen.setdefault(k)
     return list(seen)
+
+
+def bare_unknown_keys(md: str, library: Container[str]) -> list[str]:
+    """Bare `@key`s that are not library keys (and not cited in brackets either): not citations."""
+    found = citations(_prose(md))
+    bracketed = {k for _, k, b in found if b}
+    return list(dict.fromkeys(k for _, k, b in found if not b and k not in library and k not in bracketed))
 
 
 def _line(e) -> str:
@@ -83,7 +116,7 @@ def render_references(entries: dict, cited: list[str], citation_style: str) -> s
 
 def update_references(md: str, entries: dict, citation_style: str) -> str:
     eol = detect_eol(md)
-    block = render_references(entries, cited_keys(md), citation_style)
+    block = render_references(entries, cited_keys(md, entries), citation_style)
     pre, secs = split_sections(md)
     kept = [g for s in secs if s.name == "References" for g in _kept_groups(s.text)]
     secs = [s for s in secs if s.name != "References"]

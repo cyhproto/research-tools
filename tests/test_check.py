@@ -325,3 +325,31 @@ def test_main_turns_any_exception_into_exit_2(monkeypatch, capsys):
     assert cli.main(["version"]) == 2
     cap = capsys.readouterr()
     assert cap.out == "" and cap.err.startswith("ModuleNotFoundError: ") and "Traceback" not in cap.err
+
+
+# --- m2 / P37: DBLP keys; bare @key citations -------------------------------------------------
+
+def _add_entry(p, key, must_cite=False):
+    lib = json.loads((p / "references/library.json").read_text())
+    lib.append({"key": key, "title": "Attention", "authors": ["A V"], "venue": "NeurIPS", "year": 2017,
+                "abstract": "Transformers.", "abstract_source": "openalex", "verified_by": "openalex",
+                "must_cite": must_cite, "found_in_section": "Introduction", "reason": "r"})
+    (p / "references/library.json").write_text(json.dumps(lib))
+
+
+def test_dblp_must_cite_key_is_read_whole(tmp_path):
+    key = "DBLP:conf/nips/VaswaniSPUJGKP17"
+    p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", f"Attention helps [@{key}].\n\n## Conclusion"))
+    _add_entry(p, key, must_cite=True)
+    assert not [i.message for i in run_check(p, root) if i.category == "citations" and i.status == "fail"]
+
+
+def test_bare_keys_in_check(tmp_path):
+    # a bare library key cites (must-cite satisfied); a bare unknown key is a warning, not a FAIL
+    p, root = setup(tmp_path, lambda md: md.replace("[@Kim2024Own]", "").replace(
+        "## Conclusion", "As @Kim2024Own showed, and as @Someone2020 says, Recall@10 rises.\n\n## Conclusion"))
+    items = run_check(p, root)
+    cit = [(i.status, i.message) for i in items if i.category == "citations"]
+    assert not [m for s, m in cit if s == "fail"]
+    [w] = [m for s, m in cit if s == "warn" and "Someone2020" in m]
+    assert "@Someone2020" in w and "Recall" not in " ".join(m for _, m in cit)

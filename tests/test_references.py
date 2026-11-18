@@ -54,3 +54,31 @@ def test_text_under_references_is_kept_after_the_list():
     assert update_references(out, {"a": E("a"), "b": E("b")}, "numbered") == out
     crlf = update_references(md.replace("\n", "\r\n"), {"a": E("a"), "b": E("b")}, "numbered")
     assert crlf == out.replace("\n", "\r\n")
+
+
+# --- m2 / P37: pandoc key characters; bare @key citations ----------------------------------
+def test_pandoc_key_characters_and_trailing_punctuation():
+    md = "As shown [@DBLP:conf/nips/VaswaniSPUJGKP17; @a+b, p. 3] and [-@c.d] [@e.]: [@f?]"
+    assert cited_keys(md) == ["DBLP:conf/nips/VaswaniSPUJGKP17", "a+b", "c.d", "e", "f"]
+
+
+def test_at_inside_words_is_not_a_citation():
+    md = "Recall@10 is 0.4 and mAP@0.5 is 0.3 [see Recall@10]; mail me@x.org or [me@x.org]."
+    assert cited_keys(md) == [] and cited_keys(md, {"10", "0.5", "x.org"}) == []
+
+
+def test_bare_keys_count_only_when_they_are_library_keys():
+    md = ("@Kim2024Own shows it, unlike @nobody and [@b].\n\n`@code` <https://x.org/@a> "
+          "https://y.org/@a [link](https://z.org/@a) <!-- @a -->\n\n```\n@a\n```\n")
+    lib = {"Kim2024Own", "a", "b"}
+    assert cited_keys(md) == ["b"]
+    assert cited_keys(md, lib) == ["Kim2024Own", "b"]
+    from po.references import bare_unknown_keys
+    assert bare_unknown_keys(md, lib) == ["nobody"]
+
+
+def test_references_include_bare_library_keys_in_order():
+    md = "## Intro\n\n@a found it [@b], and @c too.\n"
+    out = update_references(md, {"a": E("a"), "b": E("b")}, "numbered")
+    refs = out.split("## References")[1]
+    assert refs.index("- [@a] A0 B") < refs.index("- [@b] A0 B") and "[@c]" not in refs

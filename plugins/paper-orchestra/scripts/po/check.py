@@ -11,7 +11,7 @@ from .cli import common_parent, emit
 from .library import load_library
 from .numbers import matches, materials_numbers, unmatched
 from .paper import H2_RE, LINE_RE, fence_tags, section_name, split_sections
-from .references import BRACKET_RE, ENTRY_RE, KEY_RE, cited_keys
+from .references import ENTRY_RE, bare_unknown_keys, cited_keys, citations
 from .settings import load_settings
 from .sourcetags import mask_tags, parse_tags
 from .style import find_style, load_style
@@ -198,13 +198,17 @@ class _Items:
 
 def _check_citations(md, lib, items: _Items) -> None:
     entries = {e.key: e for e in lib}
-    cited = cited_keys(md)
+    cited = cited_keys(md, entries)  # bare @key narrative citations count when they are library keys
     for k in cited:
         ln = _first_line(md, "@" + k)
         if k not in entries:
             items.add("citations", "fail", ln, f"citation key {k} is not in the library")
         elif not entries[k].verified_by:
             items.add("citations", "fail", ln, f"library entry {k} has no verified_by")
+    for k in bare_unknown_keys(md, entries):
+        items.add("citations", "warn", _first_line(md, "@" + k),
+                  f"@{k} is not a library key, so it is not read as a citation; "
+                  "to cite a paper, use its key from references/library.json")
     for e in lib:
         if e.must_cite and e.key not in cited:
             items.add("citations", "fail", None, f"must-cite entry {e.key} is not cited")
@@ -224,19 +228,18 @@ def _check_citations(md, lib, items: _Items) -> None:
             offs.append(offs[-1] + len(l) + 1)
         spans = _sentence_spans(text)
         seen = set()
-        for g in BRACKET_RE.finditer(text):
-            for key in KEY_RE.findall(g.group(1)):
-                e = entries.get(key)
-                if e is None or not e.title_only:
-                    continue
-                s, t = next((a, b) for a, b in spans if a <= g.start() <= b)
-                if (key, s) in seen:
-                    continue
-                seen.add((key, s))
-                line_idx = max(i for i, o in enumerate(offs[:-1]) if o <= g.start())
-                items.add("citations", "needs_ruling", block[line_idx][0],
-                          f"sentence cites title-only entry {key}",
-                          {"sentence": text[s:t].strip(), "key": key, "title": e.title, "venue": e.venue})
+        for pos, key, _ in citations(text):
+            e = entries.get(key)
+            if e is None or not e.title_only:
+                continue
+            s, t = next((a, b) for a, b in spans if a <= pos <= b)
+            if (key, s) in seen:
+                continue
+            seen.add((key, s))
+            line_idx = max(i for i, o in enumerate(offs[:-1]) if o <= pos)
+            items.add("citations", "needs_ruling", block[line_idx][0],
+                      f"sentence cites title-only entry {key}",
+                      {"sentence": text[s:t].strip(), "key": key, "title": e.title, "venue": e.venue})
 
 
 def _check_numbers(md, paper_dir, lib, settings, items: _Items) -> None:
@@ -271,11 +274,10 @@ def _cited_abstract_with(h, line_starts: list[int], index: dict, entries: dict) 
     text, off, spans = index[h.line_no]
     pos = off + h.num.start - line_starts[h.line_no - 1]
     sentence = next((text[s:t] for s, t in spans if s <= pos <= t), "")
-    for g in BRACKET_RE.finditer(sentence):
-        for key in KEY_RE.findall(g.group(1)):
-            e = entries.get(key)
-            if e is not None and e.abstract and matches(h.num, materials_numbers([e.abstract])):
-                return key
+    for _, key, _ in citations(sentence):
+        e = entries.get(key)
+        if e is not None and e.abstract and matches(h.num, materials_numbers([e.abstract])):
+            return key
     return None
 
 

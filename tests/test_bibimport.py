@@ -100,3 +100,15 @@ def test_bibtex_misc():
 
 def test_clean_latex_extras():
     assert clean_latex(r"\v{S}koda \c{c} Stra\ss e \o{} {\o} \{x\} 50\% a\_b A~B 1---2") == "Skoda c Strasse o o {x} 50% a_b A B 1—2"
+
+
+def test_must_cite_keys_pandoc_cannot_read_are_warned(tmp_path):
+    from po.bibimport import load_imports
+    d = tmp_path / "materials/references"
+    d.mkdir(parents=True)
+    (d / "must_cite.bib").write_text("@article{DBLP:conf/nips/VaswaniSPUJGKP17, title={A}}\n"
+                                     "@article{smith 2020, title={B}}\n@article{doe2021:, title={C}}\n")
+    (d / "library.bib").write_text("@article{lib key, title={D}}\n")
+    warns = load_imports(tmp_path)["warnings"]
+    assert len(warns) == 2 and all("must-cite key" in w for w in warns)
+    assert "'smith 2020'" in warns[0] and "'doe2021:'" in warns[1]
