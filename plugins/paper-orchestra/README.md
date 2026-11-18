@@ -5,7 +5,7 @@ A Claude Code plugin that drafts a research paper in Markdown from your project'
 ## Install
 
 ```
-/plugin marketplace add <owner>/research-tools
+/plugin marketplace add cyhproto/research-tools
 /plugin install paper-orchestra@research-tools
 ```
 
