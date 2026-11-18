@@ -220,3 +220,17 @@ L4, W9 and X4 now list allowed and forbidden sentence patterns for entries witho
   | Journal topic | 2.35 M |
   | Gather | 0.54 M |
 - **Rerun on the full profile:** the figures-only rerun with 4 figures and up to 3 critic rounds (4.94 M) cost more than either light hand-edit review (1.63 M and 1.76 M).
+
+### After the run: fix round 0
+
+These changes address observations above. They were checked with unit tests and script-only runs; there were no new `claude -p` runs.
+
+- **Numbers from cited abstracts** (`0b22e9b`): such a number now passes Check when the abstract of an entry cited in the same sentence holds it, and the item names the key. Re-checking the journal paper this way (script only) turns "60" (Xu 2022) and "9.1%" (Severson 2019) into PASS items.
+- **Text below `## References`** (`a41c97f`): it is kept after the list, checked as body text, and reported in one warn item.
+- **SKILL changes:**
+  - §3 states one resume rule for outputs written before their checkpoint (`b58e361`);
+  - naming a stage approves running it even when stale (`0113fb7`);
+  - `lookup-failed` drops are explained (`116470d`);
+  - scratch files go under `$PAPER/.tmp/` (`0d721fe`).
+- **README** (`0880a65`): journal statements, reference corrections, and the full-profile ceiling. A full-profile review round, measured from the Task 21 transcripts, takes 716 s and 3.00 M tokens: 1.39 M for its agents and 1.60 M for the orchestrating session. The 1.5 M per round quoted in the Task 21 section counted the agents only. With all 3 rounds, the sample would take about 56 minutes and 21 M tokens.
+- **Journal fixture** (`f100950`): its abstracts are now paraphrased. The journal scenario above ran with the verbatim ones.
