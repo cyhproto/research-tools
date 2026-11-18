@@ -1,0 +1,3 @@
+[
+  {"id": "fig_main", "kind": "plot", "file": "figures/fig_main.png", "caption": "Main results on X.", "description": "Bar chart of accuracy."}
+]

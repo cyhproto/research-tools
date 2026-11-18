@@ -1,0 +1,11 @@
+[
+  {"key": "Smith2023Deep", "title": "Deep Methods for Benchmark X", "authors": ["Alice Smith"], "venue": "NeurIPS", "year": 2023,
+   "abstract": "We study deep methods for benchmark X.", "abstract_source": "openalex", "verified_by": "openalex",
+   "must_cite": false, "found_in_section": "Related Work", "reason": "prior work"},
+  {"key": "Lee2022Graph", "title": "Graph Learning Survey", "authors": ["Bo Lee"], "venue": "ICML", "year": 2022,
+   "abstract": null, "abstract_source": null, "verified_by": "crossref",
+   "must_cite": false, "found_in_section": "Related Work", "reason": "background"},
+  {"key": "Kim2024Own", "title": "Our Earlier Graph Result", "authors": ["Cy Kim"], "venue": "ICLR", "year": 2024,
+   "abstract": "An earlier result on graphs.", "abstract_source": "user", "verified_by": "user-vouched",
+   "must_cite": true, "found_in_section": "Introduction", "reason": "must cite"}
+]
