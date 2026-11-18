@@ -14,16 +14,25 @@ _LINK_TARGET_RE = re.compile(r"\]\([^)\n]*\)")
 _TAG_RE = re.compile(r"\\tag\*?\{[^}]*\}")
 _HEADING_NUM_RE = re.compile(r"^(#{1,6}[ \t]+)\d+(?:\.\d+)*\.?(?=\s|$)", re.M)
 _LIST_MARKER_RE = re.compile(r"^([ \t]*)(?:[-*+]|\d+[.)])(?=\s)", re.M)
-# Cross-references are not claims. One number after a singular name ("Section 4.1", "Eq. (3)"); a
-# list after a plural one: items and ranges ("2-4", "5.1 to 5.3") joined by commas and closed by
-# "and" or "&" ("Figures 2, 3, and 5"). A percent is never a cross-reference, and the list ends at
-# its closing item, so "Sections 4.1 and 4.2, 57.5 on average" still checks 57.5.
-_XNUM = r"\(?[ \t]*\d+(?:\.\d+)*\)?(?![\d.]*%)"
-_XRANGE = rf"{_XNUM}(?:\s*[–—-]\s*{_XNUM}|\s+to\s+{_XNUM})?"
-_XLIST = rf"{_XRANGE}(?:\s*,\s*{_XRANGE})*(?:(?:\s*,?\s+and\s+|\s*&\s*){_XRANGE})?"
+# Cross-references are not claims.
+# - After a singular name, one number, in any letter case, as before the plural lists were added:
+#   "Section 4.1", "Eq. (3)", "figure 7".
+# - After a capitalised plural name, a list. An item is a number, or a range whose ends have the same
+#   shape: "3–5", "2-4", "5.1 to 5.3"; a spaced dash is punctuation, not a range. Commas join
+#   items only in a list that "and" or "&" closes ("Figures 2, 3, and 5"), and the list ends at its
+#   closing item. An item ends where its number ends, and only the separators hold spaces, so a
+#   long list without a closing "and" fails in linear time (no atomic groups before Python 3.11).
+# - A percent is never an item. So "Across Figures 3–5, 91.7 is the best" and
+#   "the figures 87.3 and 85.1" still check their numbers.
+_XSINGLE = r"\(?[ \t]*\d+(?:\.\d+)*\)?"
+_XINT = r"\(?\d+\)?(?![\d.]*%)(?!\.?\d)"
+_XDOT = r"\(?\d+(?:\.\d+)+\)?(?![\d.]*%)(?!\.?\d)"
+_XITEM = (rf"(?:{_XDOT}(?:[–—-]{_XDOT}|\s+to\s+{_XDOT})?"
+          rf"|{_XINT}(?:[–—-]{_XINT}|\s+to\s+{_XINT})?)")
+_XLIST = rf"{_XITEM}(?:(?:\s*,\s*{_XITEM})*(?:\s*,?\s+and\s+|\s*&\s*){_XITEM})?"
 _XREF_RE = re.compile(
-    rf"\b(?:(?:Figure|Fig\.|Table|Section|Sec\.|Eq\.|Equation|Appendix)[ \t]*{_XNUM}"
-    rf"|(?:Figures|Figs\.|Tables|Sections|Secs\.|Eqs\.|Equations)[ \t]*{_XLIST})", re.I)
+    rf"\b(?:(?i:Figure|Fig\.|Table|Section|Sec\.|Eq\.|Equation|Appendix)[ \t]*{_XSINGLE}"
+    rf"|(?:Figures|Figs\.|Tables|Sections|Secs\.|Eqs\.|Equations)[ \t]*{_XLIST})")
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 _CONTEXT_MAX = 200
 

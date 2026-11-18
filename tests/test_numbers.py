@@ -1,3 +1,4 @@
+import pytest
 from po.numbers import extract_paper_numbers, matches, materials_numbers, unmatched
 from po.numtok import find_numbers
 
@@ -100,3 +101,41 @@ def test_ratio_checked_and_resolution_skipped():
     assert vals("It is 13.2x faster on 512x512 images than 12.5× before.") == [13.2, 12.5]
     assert matches(find_numbers("13.2x")[0], materials_numbers(["speedup 13.2x on 512x512 inputs"]))
     assert [h.num.value for h in unmatched("We get 13.2x and 14.1x on 512x512.", ["speedup 13.2x"], set())] == [14.1]
+
+
+# --- P39 / NB1: a plural cross-reference list never swallows a result ------------------------
+@pytest.mark.parametrize("md, keep", [
+    ("Across Figures 3\u20135, 91.7 is the best.", [91.7]),
+    ("(Tables 2\u20134), 87.3 on average.", [87.3]),
+    ("Sections 4.1\u20134.3, 57.5 points.", [57.5]),
+    ("Tables 2 to 4, 87.3 vs. 85.1.", [87.3, 85.1]),
+    ("the figures 87.3 and 85.1 respectively", [87.3, 85.1]),
+    # a range's end has its start's shape, and a spaced dash is punctuation, not a range
+    ("Tuning lifts Tables 2 and 3 to 87.3 overall.", [87.3]),
+    ("Tables 2 and 3 \u2013 87.3 overall.", [87.3]),
+])
+def test_cross_reference_lists_keep_results(md, keep):
+    assert vals(md) == keep
+
+
+def test_plural_names_are_case_sensitive_singular_names_are_not():
+    assert vals("Figures 12 and 14 and Sections 4.1 and 4.2 agree.") == []
+    assert vals("figure 77 and TABLE 15 and Section 4.1 too.") == []
+
+
+def test_long_unclosed_lists_do_not_backtrack():
+    import signal
+    if not hasattr(signal, "SIGALRM"):
+        pytest.skip("needs SIGALRM")
+
+    def too_slow(*_):
+        raise TimeoutError("the cross-reference pattern backtracks on a long list")
+    old = signal.signal(signal.SIGALRM, too_slow)
+    signal.alarm(5)
+    try:
+        assert vals("Tables " + "1, " * 40 + "2 vs 87.3 here.") == [87.3]
+        # a percent cannot close the list, so only its first item is a cross-reference
+        assert vals("Figures " + "1.1, " * 40 + "and 2.5% here.") == [1.1] * 39 + [2.5]
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
