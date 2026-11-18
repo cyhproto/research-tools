@@ -63,10 +63,15 @@ The clean-up moves the stage's old outputs into `$PAPER/old/<stage>-<stamp>/`; n
 | Stage | Checkpoint ids | Clean-up before a fresh re-run |
 |---|---|---|
 | outline | none | copy `outline.json` to `old/outline-<stamp>.json` |
-| literature | `lit:<task_id>` (set by `refs verify`), `lit:writer` | `$PO state clear-tasks lit:`; move `drafts/lit_sections.md`, `references/candidates/` and `references/batches/`. Ask, and wait for the answer: keep the library (stable keys, new papers added) or start fresh (advised after re-planning the outline: also move `references/library.json`, `references.bib` and `search_log.json`; keep `cache.json`) |
+| literature | `lit:<task_id>` (set by `refs verify`), `lit:writer` | ask first; see **Literature re-run** below |
 | figures | `fig:<id>:r0` (first build), `fig:<id>:r<n>` (critic round n and its rebuild), `fig:<id>:done` | `$PO state clear-tasks fig:`; move `figures/` (meta, critic, src, generated files, `info.json`; `figures collect` copies supplied images again) |
 | write | `write:writer` | `$PO state clear-tasks write:`; move `drafts/write_sections.md` and `drafts/write_notes.md` |
 | review | `review:user-saved`, `review:v<K>:r<i>`, `review:v<K>:meta`, `review:v<K>:reviser`, `review:v<K>:fixed`, `review:v<K>:kept` | `$PO state clear-tasks review:`; move `reviews/`, `drafts/marked_v*.md` and `drafts/candidate_v*.md` |
+
+**Literature re-run.** Ask which clean-up to do, and wait for the answer:
+- **retry lookups only**: offer it when `$PO refs counts` shows `lookup-failed` in `dropped_by_reason`. Run `$PO state clear-tasks lit:writer` and move only `drafts/lit_sections.md`. The candidates, the library and `search_log.json` stay, so no scout runs: `refs verify` looks up the failed candidates again, and the literature writer runs again;
+- **keep the library** (stable keys, new papers added): run `$PO state clear-tasks lit:`; move `drafts/lit_sections.md`, `references/candidates/` and `references/batches/`. The scouts search again;
+- **start fresh** (advised after re-planning the outline): as keep the library, and also move `references/library.json`, `references.bib` and `search_log.json`; keep `cache.json`.
 
 **Run options.** `write --only` and `--hand-edits` are recorded as ids: `opt:write:only=<Section>` (one per name) and `opt:review:hand-edits=<mode>`.
 - On a fresh start of write or review: run `$PO state clear-tasks opt:<stage>:`, then `$PO state task-done` for each option given.
@@ -132,7 +137,7 @@ Run both branches together, with at most 4 agents at once across both. Send at m
 1. Run `$PO outline tasks`; it writes `references/tasks.json`.
 2. A task is pending when `$PO state is-done lit:<id>` exits 1 and `references/candidates/<id>.json` does not exist (the resume rule, §3; `refs verify` in step 4 checks that each file parses). Check them one at a time; one Bash loop is fine.
 3. Create `$PAPER/references/batches/` and `$PAPER/references/candidates/`. Split the pending tasks into batches of at most 8. Write each batch as a JSON array to `$PAPER/references/batches/batch-<n>.json`. Dispatch one `literature-scout` per batch.
-4. When all scouts are back, run `$PO refs verify`. It marks `lit:<id>` done for each valid file.
+4. When all scouts are back (or none was needed), run `$PO refs verify`, with the Bash tool's `timeout` set to 600000 (10 minutes): it looks papers up at about one request per second per service, which can take minutes. If it times out anyway, run it again; finished lookups are cached in `references/cache.json`, so a rerun is cheap. It marks `lit:<id>` done for each valid file.
    - Exit 1: move the files named in `invalid_task_files` (`<id>.json`) into `old/literature-<stamp>/`, re-dispatch those tasks once, as new batches, then run `$PO refs verify` again. Report any that stay invalid.
    - Exit 2: a settings problem or a missing candidates folder; follow the catch-all in §3.
    - Show `warnings`.
@@ -143,8 +148,8 @@ Run both branches together, with at most 4 agents at once across both. Send at m
    - mark literature failed and stop this branch. The other stages still work.
 6. Run `$PO outline inject`.
 7. If `lit:writer` is not done (§3 resume rule), dispatch `literature-writer`. When `drafts/lit_sections.md` exists, run `$PO state task-done lit:writer`.
-8. Run `$PO paper replace --owner literature-writer --from $PAPER/drafts/lit_sections.md`. On a conflict, see **Hand-edit conflicts** below.
-9. Report the four counts from `refs verify`: `with_abstract`, `title_only`, `must_cite`, and `dropped` (with `dropped_by_reason`). If `dropped_by_reason` has `lookup-failed`, say that those papers could not be looked up and are retried the next time Literature runs (`refs verify` looks them up again). Name the likely cause: the free daily lookup budget. Without a key, OpenAlex shares one small budget among everyone on the same network address; setting `OPENALEX_API_KEY` raises it.
+8. Run `$PO paper replace --owner literature-writer --from $PAPER/drafts/lit_sections.md`. On a conflict, see **Hand-edit conflicts** below. Once the sections are in, run `$PO paper references`, so References lists the citations of the new sections.
+9. Report the four counts from `refs verify`: `with_abstract`, `title_only`, `must_cite`, and `dropped` (with `dropped_by_reason`). If `dropped_by_reason` has `lookup-failed`, say that those papers could not be looked up, and that `/paper-orchestra lit-review` with "retry lookups only" (§3, **Literature re-run**) looks them up again without searching again. Name the likely cause: the free daily lookup budget. Without a key, OpenAlex shares one small budget among everyone on the same network address; setting `OPENALEX_API_KEY` raises it.
 
 **Figures**
 
@@ -251,8 +256,9 @@ Every reviewer, meta-reviewer and reviser output file is a checkpoint, through i
 - **Stale stages.** Re-running a stage makes the stages after it stale; for example, re-running figures makes write, review and check stale.
   - **A stage the user named** (`/paper-orchestra review`, `/paper-orchestra check`, …): naming it is the approval to run it, stale or not, so run it without asking. Ask only when a stage it depends on is stale (outline needs gather; lit-review and figures need outline; write needs lit-review and figures; review and check need write): say which one and what changed, and ask whether to re-run that stage first. End your turn and wait for the user.
   - **No stage named:** before running a stale `next_stage`, and after any run that left later stages stale, report them and ask:
-    - name what changed and the paper sections that depend on it: materials or figures → Method and Experiments; literature → Introduction and Related Work;
-    - suggest `write --only "<Section>"` for just those sections.
+    - name what changed and the paper sections that depend on it, and how to redo them:
+      - materials or figures → Method and Experiments: suggest `write --only "<Section>"` for just those sections;
+      - literature → Introduction, Related Work and References. The literature writer owns the first two, so `write --only` cannot redo them: re-running lit-review reruns that writer and `$PO paper references` (§6, Literature steps 7–8), and a lit-review that just ran has done both. After a library started fresh, the section writer's sections may cite keys that are gone: Check lists them, and re-running write in full rewrites those sections.
 
     End your turn and wait for the user. If the user declines, continue with the first stage that is not done, or stop.
   - **After a named stage**, report the stages it left stale in the same words and suggest what to re-run; the user decides.
