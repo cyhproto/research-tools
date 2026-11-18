@@ -288,3 +288,43 @@ def test_protect_without_tool_version_protects_every_paragraph(tmp_path, capsys)
     assert "My own words here." in cand.read_text() and "Rewritten." not in cand.read_text()
     assert main(["paper", "accept", *base, "--from", str(cand)]) == 0
     assert get_protected(paper) == ["Tool para one.", "My own words here.", "Tool para three."]
+
+
+# --- m1 / P37: review.md says what an undone round left out of paper.md -----------------------
+def _what_changed(paper):
+    md = (paper / "review.md").read_text()
+    return md[md.index("## What changed"):md.index("## Experiments reviewers asked for")]
+
+
+def test_render_says_undone_changes_are_not_in_paper_md(tmp_path):
+    paper = tmp_path / "paper"
+    (paper / "reviews").mkdir(parents=True)
+    (paper / "drafts").mkdir()
+    (paper / "drafts/write_notes.md").write_text("- Introduction: a claim the log contradicts.\n")
+    rounds = [{"version": 1, "overall_before": 5, "overall_after": 4, "outcome": "REJECTED_SCORE_DECREASE"}]
+    (paper / "reviews/rounds.json").write_text(json.dumps(rounds))
+    (paper / "reviews/worklog_v1.json").write_text(json.dumps({"actions_taken": ["Fixed the Introduction claim"]}))
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    sec = _what_changed(paper)
+    assert ("Round v1: revision undone (REJECTED_SCORE_DECREASE). paper.md does not contain these changes; "
+            "the discarded draft is drafts/candidate_v1.md.") in sec
+    assert sec.index("discarded draft") < sec.index("Fixed the Introduction claim")
+    assert "No revision was kept, so any problems listed in drafts/write_notes.md are still in paper.md." in sec
+    # round 1 kept, round 2 undone: only round 2 is discarded, and the write notes were handled
+    rounds = [{"version": 1, "overall_before": 5, "overall_after": 6, "outcome": "ACCEPTED_SCORE_INCREASE"},
+              {"version": 2, "overall_before": 6, "overall_after": 5, "outcome": "REJECTED_SCORE_DECREASE"}]
+    (paper / "reviews/rounds.json").write_text(json.dumps(rounds))
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    sec = _what_changed(paper)
+    assert "drafts/candidate_v2.md" in sec and "drafts/candidate_v1.md" not in sec and "write_notes" not in sec
+
+
+def test_render_without_write_notes_or_rounds(tmp_path):
+    paper = tmp_path / "paper"
+    (paper / "reviews").mkdir(parents=True)
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    assert "write_notes" not in _what_changed(paper)
+    (paper / "drafts").mkdir()
+    (paper / "drafts/write_notes.md").write_text("No consistency problems found.\n")
+    assert main(["review", "render", "--paper", str(paper)]) == 0
+    assert "drafts/write_notes.md" in _what_changed(paper)

@@ -299,16 +299,22 @@ def _change_lines(changes: list[dict], rounds: list[dict]) -> list[str]:
 
 def render_review_md(rounds: list[dict], todo: list[str], suggestions: list[str],
                      restorations: list[dict], check_md: str | None,
-                     changes: list[dict] | None = None) -> str:
+                     changes: list[dict] | None = None, write_notes: bool = False) -> str:
+    """write_notes: drafts/write_notes.md exists, so a review that kept no round points to it."""
     kept = lambda r: str(r.get("outcome", "")).startswith("ACCEPTED")
     table = ["| Round | Overall before | Overall after | Outcome |", "| --- | --- | --- | --- |"]
     table += [f"| v{r['version']} | {r.get('overall_before')} | {r.get('overall_after')} | {r.get('outcome')} |"
               for r in rounds]
     changed = []
     for r in rounds:
-        verdict = "kept" if kept(r) else "undone"
-        changed.append(f"- Round v{r['version']}: revision {verdict} ({r.get('outcome')}).")
+        if kept(r):
+            changed.append(f"- Round v{r['version']}: revision kept ({r.get('outcome')}).")
+        else:
+            changed.append(f"- Round v{r['version']}: revision undone ({r.get('outcome')}). paper.md does not "
+                           f"contain these changes; the discarded draft is drafts/candidate_v{r['version']}.md.")
         changed += [f"  - {a}" for a in r.get("actions_taken", [])]
+    notes = ("No revision was kept, so any problems listed in drafts/write_notes.md are still in paper.md."
+             if write_notes and not any(kept(r) for r in rounds) else "")
     acts = [r for r in restorations if r.get("action") != "unchanged"]
     prot = [f"- Paragraph {r.get('id')}"
             + (f" (round v{r['version']})" if r.get("version") is not None else "")
@@ -320,7 +326,7 @@ def render_review_md(rounds: list[dict], todo: list[str], suggestions: list[str]
     parts = [
         "# Review\n",
         "## Review rounds\n\n" + "\n".join(table) if rounds else "## Review rounds\n\nNo review rounds yet.",
-        "## What changed\n\n" + ("\n".join(changed) if changed else "Nothing yet."),
+        "## What changed\n\n" + ("\n".join(changed) if changed else "Nothing yet.") + (f"\n\n{notes}" if notes else ""),
         "## Experiments reviewers asked for\n\n" + _bullets(_dedup(todo), "None."),
         "## Suggestions for your edited paragraphs\n\n" + _bullets(_dedup(suggestions), "None."),
         "## Changes to your edited paragraphs\n\n" + ("\n".join(_change_lines(changes or [], rounds)) or "None."),
@@ -505,7 +511,8 @@ def _cmd_render(args) -> int:
             sugg += wl.get("suggestions_for_protected", [])
     target = paper / "review.md"
     check = _existing_check(_read(target)) if target.is_file() else None
-    _write(target, render_review_md(rounds, todo, sugg, resto, check, _load_changes(rev)))
+    _write(target, render_review_md(rounds, todo, sugg, resto, check, _load_changes(rev),
+                                    (paper / "drafts" / "write_notes.md").is_file()))
     emit({"review": str(target), "rounds": len(rounds)})
     return 0
 
