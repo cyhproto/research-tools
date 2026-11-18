@@ -18,7 +18,9 @@ AGENTS = {"materials-drafter": dict(model="inherit", tools="Read, Glob, Grep, Wr
           "figure-maker": dict(model="inherit", tools="Read, Write, Edit, Bash",
           rules=[f"F{i}" for i in range(1, 9)], ground_rules=True, ported=True),
           "figure-critic": dict(model="sonnet", tools="Read, Write",
-          rules=[f"C{i}" for i in range(1, 9)], ground_rules=False, ported=True)}
+          rules=[f"C{i}" for i in range(1, 9)], ground_rules=False, ported=True),
+          "section-writer": dict(model="inherit", tools="Read, Write",
+          rules=[f"W{i}" for i in range(1, 12)], ground_rules=True, ported=True)}
 
 
 @pytest.mark.parametrize("name", sorted(AGENTS))
