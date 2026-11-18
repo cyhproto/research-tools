@@ -20,13 +20,13 @@ AGENTS = {"materials-drafter": dict(model="inherit", tools="Read, Glob, Grep, Wr
           "figure-critic": dict(model="sonnet", tools="Read, Write",
           rules=[f"C{i}" for i in range(1, 9)], ground_rules=False, ported=True),
           "section-writer": dict(model="inherit", tools="Read, Write",
-          rules=[f"W{i}" for i in range(1, 12)], ground_rules=True, ported=True),
+          rules=[f"W{i}" for i in range(1, 13)], ground_rules=True, ported=True),
           "reviewer": dict(model="inherit", tools="Read, Write",
           rules=[f"V{i}" for i in range(1, 8)], ground_rules=False, ported=True),
           "meta-reviewer": dict(model="inherit", tools="Read, Write",
           rules=[f"A{i}" for i in range(1, 4)], ground_rules=False, ported=True),
           "reviser": dict(model="inherit", tools="Read, Write",
-          rules=[f"X{i}" for i in range(1, 11)], ground_rules=True, ported=True),
+          rules=[f"X{i}" for i in range(1, 12)], ground_rules=True, ported=True),
           "checker": dict(model="inherit", tools="Read, Write, Glob",
           rules=[f"K{i}" for i in range(1, 5)], ground_rules=False, ported=False)}
 

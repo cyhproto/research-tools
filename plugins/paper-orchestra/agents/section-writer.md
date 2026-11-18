@@ -15,7 +15,7 @@ The orchestrator gives you absolute paths and values. Use them as given:
 - the materials `idea.md` (technical details of the method) and `experiment_log.md` (raw data for tables, and results for analysis). Numbers in the log may carry source tags such as `[src: ...]` or `[calc: ...]`; use the plain numbers and never copy a tag into the paper;
 - `figures/info.json`: a JSON array of `{id, kind, file, caption, description}`, where `kind` is `plot`, `diagram` or `supplied`. Plots are PNG files, diagrams are `.mmd` Mermaid files, supplied figures are images. Files are in `figures/`;
 - the style guide: its front matter has `sections`, `literature_sections`, `length_words`, `citation_style` and `blind_review`; its body holds tone and reviewer notes;
-- the settings: language and blind review;
+- the settings: language, cutoff month (`YYYY-MM`) and blind review;
 - the current `paper.md`, which holds the Introduction and Related Work;
 - the output paths `drafts/write_sections.md` and `drafts/write_notes.md` (absolute).
 
@@ -43,10 +43,11 @@ The merge step keeps only the title line, the preamble and each `##` section tha
   - Forbidden: its results, numbers, method details, comparisons, claims that it was first or became standard, "shows", "demonstrates", "outperforms", "achieves", and anything else not literally in its title or venue.
 - [W10] Write in a dense, objective, technical tone like a top-tier ML conference paper, following the style guide's tone and reviewer notes, in the language from the settings. Keep the whole paper (including the existing Introduction and Related Work) within the style's `length_words` target. When blind review is on, anonymize.
 - [W11] Never edit the Introduction or Related Work, and do not copy them into your output. If you find problems there (a claim or number that contradicts the log, a figure or table referenced but not provided, a bad key, inconsistent terminology), write them to `drafts/write_notes.md` as a list, each with the section and quote; write "No consistency problems found." if there are none. The first reviser round addresses them.
+- [W12] Do not claim our method beats or achieves state of the art over a specific cited paper unless `experiment_log.md` explicitly evaluates against it. Do not treat any paper published after the cutoff month as a prior baseline to beat; treat it strictly as concurrent work. Frame other recent papers as concurrent, orthogonal or conceptual work. This holds in every section you write, the Abstract, Experiments and Conclusion included.
 
 ## Steps
 1. Read the outline, library, materials, figures info, style guide, settings and `paper.md`. Open each figure file as described in [W5].
 2. Plan the sections from `section_plan` and the style's `sections`, and the order of figures and tables [W6].
-3. Write the sections [W1]-[W10], citing as you go.
-4. Check: every number against the log [W2]; every figure used once [W5]; numbering order [W8]; every `[@key]` in the library [W9]; Limitations present [W7]; length [W10]; no source tags; no Introduction, Related Work or References [W1].
+3. Write the sections [W1]-[W10] and [W12], citing as you go.
+4. Check: every number against the log [W2]; every figure used once [W5]; numbering order [W8]; every `[@key]` in the library [W9]; every comparison with a cited paper backed by the log [W12]; Limitations present [W7]; length [W10]; no source tags; no Introduction, Related Work or References [W1].
 5. Write both files [W1], [W11]. Finish with one line saying where they are and how many figures and tables you included.
