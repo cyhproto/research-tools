@@ -173,7 +173,7 @@ When both branches have finished, mark each branch this run completed: `$PO stat
 2. Run `$PO paper replace --owner section-writer --from $PAPER/drafts/write_sections.md`, plus `--only "<Section>" …` from the arguments or the recorded options (§3). Conflicts: see §6.
 3. Run `$PO paper references`.
 4. Run `$PO paper save-version --kind tool`.
-5. Run `$PO state mark write done`. Report the sections written and the problems listed in `drafts/write_notes.md`; the first reviser round fixes them.
+5. Run `$PO state mark write done`. Report the sections written and the problems listed in `drafts/write_notes.md`; the first reviser round addresses them, and they stay in `paper.md` if that round is undone (§8).
 
 ## 8. Review
 
@@ -224,7 +224,8 @@ Before the panel on version 0:
    - each round's Overall before → after, and its outcome;
    - the experiments reviewers asked for;
    - the suggestions for the user's edited paragraphs;
-   - in revise mode, the changes made to those paragraphs.
+   - in revise mode, the changes made to those paragraphs;
+   - if no revision was kept (round 1 undone, or no round ran), the problems listed in `drafts/write_notes.md` are still in `paper.md`: say so and list them. If round 1 was undone, `drafts/candidate_v1.md` holds the reviser's fixes.
 
 Every reviewer, meta-reviewer and reviser output file is a checkpoint, through its id above, and is skipped on resume.
 
