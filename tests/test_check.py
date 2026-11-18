@@ -235,3 +235,19 @@ def test_number_cited_to_title_only_entry_stays_unmatched(tmp_path):
     p, root = setup(tmp_path, lambda md: md.replace("## Conclusion", "Lee et al. report 92.4% accuracy [@Lee2022Graph].\n\n## Conclusion"))
     _set_abstract(p, "Smith2023Deep", ABSTRACT)
     assert [i.status for i in _numbers(run_check(p, root))] == ["needs_ruling"]
+
+
+# --- C1: reference-manager exports are not materials ------------------------------------
+
+def test_reference_exports_are_not_materials(tmp_path):
+    p, root = setup(tmp_path, lambda md: md.replace(
+        "## Conclusion", "Our method reaches 91.7 on X, a gain of 3.42 points.\n\n## Conclusion"))
+    refs = p / "materials/references"; refs.mkdir()
+    (refs / "library.json").write_text(json.dumps([{"id": "Other2023", "type": "article-journal",
+        "title": "Another Method", "abstract": "It reaches 91.7 on X, a gain of 3.42 points.",
+        "issued": {"date-parts": [[2023]]}}]))
+    (refs / "must_cite.json").write_text(json.dumps([{"id": "Mine2024", "title": "My Work",
+        "abstract": "We reach 91.7 and 3.42."}]))
+    (refs / "notes.md").write_text("Numbers 91.7 and 3.42 copied from a PDF.\n")
+    got = {i.data["token"]: i.status for i in run_check(p, root) if i.category == "numbers"}
+    assert got == {"91.7": "needs_ruling", "3.42": "needs_ruling"}

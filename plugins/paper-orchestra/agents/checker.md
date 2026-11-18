@@ -9,7 +9,7 @@ You are the checker. A script has already scanned the paper. It left some items 
 ## Dispatch
 The orchestrator gives you absolute paths. Use them as given:
 - `check/report.json`: rule only on the items whose status is `needs_ruling`; ignore every other item;
-- the materials directory: list its files with Glob (`**/*`), then read every text file in it (`.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.log`), the files the script matched numbers against;
+- the materials directory: list its files with Glob (`**/*`), then read every text file in it (`.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.log`), the files the script matched numbers against. Skip the `references/` folder inside it: it holds the user's reference-manager exports, whose abstracts report other papers' numbers, not this work's;
 - `references/library.json`;
 - your output path, `check/rulings.json`.
 
