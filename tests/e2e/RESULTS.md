@@ -119,7 +119,7 @@ Run on 2026-11-18 with Claude Code 2.1.327 and the headless setup above: subscri
     - `numbers-015`: number 91.7 not found in the materials;
     - `citations-020`: sentence cites title-only entry Zhou2022AudiovisualSegmentation. The 23.20 is in the log, so only the title-only rule catches this sentence.
   - **Checker:** with `/paper-orchestra check`, all three stay FAIL with stated reasons ("The title does not support any Ref-AVS result"), giving `NOT READY: 15 problems`.
-  - **Literal append:** a sentence appended at the very end of `paper.md` lands inside `## References`. Check skips that section by design and `paper references` regenerates it, so nothing is flagged.
+  - **Literal append:** a sentence appended at the very end of `paper.md` lands inside `## References`. Check skips that section by design and `paper references` regenerates it, so nothing is flagged. *Superseded by fix round 0 (`a41c97f`): such text is now kept after the list and checked as body text, with one warn item.*
   - **Usage:** scripts 0; checker run 0.51 M.
 - **Rerun figures only (item 4): pass.**
   - **Run:** `/paper-orchestra figures` on a copy of the sample, with the full profile as it was, took 369 s. It moved the old figures to `old/figures-<stamp>/` and rebuilt all 4 figures (9 builds, 9 critic rounds).
@@ -163,7 +163,7 @@ Run on 2026-11-18 with Claude Code 2.1.327 and the headless setup above: subscri
   - **Changed result:** after `seed_1,0.8731` became `seed_1,0.8000` in `results/metrics.csv`, `log verify` exits 1 with 4 mismatches. All 4 come from that cell: the value's two tags and the two `calc` tags that use it. `materials validate` also exits 1.
   - **Re-check:** running `/paper-orchestra gather` again (25 s) reported the mismatch, traced the calc lines to the cell, and asked the user to fix the log or the CSV.
   - **Usage:** 0.54 M.
-- **Unit-level items (item 3): pass.** `uv run --no-project --with pytest pytest -q` from the repo root gives 269 passed. That is 265 before this task, plus 3 tests for calc ids and 1 fixture test.
+- **Unit-level items (item 3): pass.** `uv run --no-project --with pytest pytest -q` from the repo root gave 269 passed at the time. That is 265 before this task, plus 3 tests for calc ids and 1 fixture test. The suite had 277 tests after fix round 0, and has 333 after the final fix wave.
 
 ### Title-only rules (Ruling P20)
 
@@ -197,12 +197,12 @@ L4, W9 and X4 now list allowed and forbidden sentence patterns for entries witho
 
 ### Other observations (no change made)
 
-- **Resume without a checkpoint:** both interruptions hit an output that was written but not yet checkpointed (a figure's meta file, `reviews/v0/r1.md`). Both times the orchestrator recorded the checkpoint from the file instead of redoing the work. Only Literature states this rule in SKILL.md (a task is pending only without a checkpoint *and* without a file); for figures and reviews it rests on the model's judgment.
-- **Text below `## References`:** Check ignores it, and `paper references` replaces it. A paragraph appended at the very end of `paper.md`, without its own `##` heading, is lost silently when the next stage regenerates References. The tests encode this as the design.
+- **Resume without a checkpoint:** both interruptions hit an output that was written but not yet checkpointed (a figure's meta file, `reviews/v0/r1.md`). Both times the orchestrator recorded the checkpoint from the file instead of redoing the work. Only Literature states this rule in SKILL.md (a task is pending only without a checkpoint *and* without a file); for figures and reviews it rests on the model's judgment. *Superseded by fix round 0 (`b58e361`): SKILL §3 states one resume rule for every stage.*
+- **Text below `## References`:** Check ignores it, and `paper references` replaces it. A paragraph appended at the very end of `paper.md`, without its own `##` heading, is lost silently when the next stage regenerates References. The tests encode this as the design. *Superseded by fix round 0 (`a41c97f`): the text is kept after the list and checked.*
 - **Journal required statements:** no agent writes "Data and code availability" or "Declaration of competing interests" (W1 limits the writer to the style's `sections`, and G4 forbids inventing them). The writer says so, and Check FAILs until the user adds them.
-- **Numbers quoted from cited abstracts:** for example "9.1%" from Severson et al. These FAIL in Check, because K1 accepts only the materials, although G2 lets writers use abstract facts. This is a spec tension for the user to decide.
-- **Asking before a stale stage:** `/paper-orchestra check` on a stale Check asked before running (§10). `/paper-orchestra review` on a stale review ran without asking.
-- **Key-less lookups:** the key-less OpenAlex budget for this network address ran out during the interrupted run (`429 … Insufficient budget`), and Semantic Scholar also returned 429. 8 candidates were dropped as `lookup-failed`; they are retried on the next `refs verify`. The README already recommends a free OpenAlex key.
+- **Numbers quoted from cited abstracts:** for example "9.1%" from Severson et al. These FAIL in Check, because K1 accepts only the materials, although G2 lets writers use abstract facts. This is a spec tension for the user to decide. *Superseded by fix round 0 (`0b22e9b`, Ruling P21): a number from the abstract of an entry cited in the same sentence passes.*
+- **Asking before a stale stage:** `/paper-orchestra check` on a stale Check asked before running (§10). `/paper-orchestra review` on a stale review ran without asking. *Superseded by fix round 0 (`0113fb7`): naming a stage is the approval to run it, stale or not.*
+- **Key-less lookups:** the key-less OpenAlex budget for this network address ran out during the interrupted run (`429 … Insufficient budget`), and Semantic Scholar also returned 429. 8 candidates were dropped as `lookup-failed`; they are retried on the next `refs verify`. The README already recommends a free OpenAlex key. *Changed since: fix round 0 (`116470d`) explains such drops to the user. A re-scouted Literature run retries them only if the scouts find the same titles again, so the final fix wave added a "retry lookups only" re-run that keeps the candidates (`bb509c5`).*
 - **Gather on "go":** it re-validates only when the materials changed. A result file changed during the pause is re-checked only when Gather runs again, which then reports it.
 - **Fixture slip:** the journal fixture's log first said "nine features" where `idea.md` lists eight. The section writer flagged it in `write_notes.md`, and the committed fixture now says eight.
 
