@@ -52,6 +52,12 @@ Then `$PO state mark <stage> running`. At the end `$PO state mark <stage> done`;
 
 A checkpoint is a state id: `$PO state is-done <id>` exits 0 when it is done. Mark it with `$PO state task-done <id>` as soon as its output file exists. Run every `$PO` command one at a time, never in parallel: they share an unlocked state file. Gather and check have no checkpoints.
 
+**Resume rule, for every stage.** A stop can fall between an agent writing its output and you recording the checkpoint. So on a resume, before you dispatch an agent whose checkpoint is not done, look for its output. If the output exists and passes its check below, it counts as done: record the checkpoint with `$PO state task-done <id>` and do not dispatch the agent again. If it exists but fails its check, move it into `$PAPER/old/<stage>-<stamp>/` and redo the task. The checks:
+- **JSON outputs** (a literature candidates file, a figure critic file, a reviser worklog): the file parses as JSON.
+- **Reviews** (`reviews/v<K>/r<i>.md`, `reviews/v<K>/meta.md`): the file has the score block that `review aggregate` reads. Test it with `python3 -c "import sys; sys.path.insert(0, '$SCRIPTS'); from po.review import parse_review; parse_review(open(sys.argv[1], encoding='utf-8').read())" <file>`; exit 0 means it passes.
+- **Figure builds** (`fig:<id>:r0`): `figures/meta/<id>.json` parses and the file named in its `file` exists. A critic round (`fig:<id>:r<n>`) is done when `figures/critic/<id>-r<n>.json` parses and either its `critic_suggestions` is exactly `No changes needed.` or the meta's `critic_rounds` lists round n (its rebuild ran).
+- **Markdown outputs** (`drafts/lit_sections.md`; `drafts/write_sections.md` with `drafts/write_notes.md`; a reviser's `drafts/candidate_v<K>.md` with its worklog): every file of the task exists and is not empty.
+
 The clean-up moves the stage's old outputs into `$PAPER/old/<stage>-<stamp>/`; never delete anything. Paths are under `$PAPER/`.
 
 | Stage | Checkpoint ids | Clean-up before a fresh re-run |
@@ -122,10 +128,10 @@ Run both branches together, with at most 4 agents at once across both. Send at m
 
 **Literature**
 1. Run `$PO outline tasks`; it writes `references/tasks.json`.
-2. A task is pending when `$PO state is-done lit:<id>` exits 1 and `references/candidates/<id>.json` does not exist. Check them one at a time; one Bash loop is fine.
+2. A task is pending when `$PO state is-done lit:<id>` exits 1 and `references/candidates/<id>.json` does not exist (the resume rule, §3; `refs verify` in step 4 checks that each file parses). Check them one at a time; one Bash loop is fine.
 3. Create `$PAPER/references/batches/` and `$PAPER/references/candidates/`. Split the pending tasks into batches of at most 8. Write each batch as a JSON array to `$PAPER/references/batches/batch-<n>.json`. Dispatch one `literature-scout` per batch.
 4. When all scouts are back, run `$PO refs verify`. It marks `lit:<id>` done for each valid file.
-   - Exit 1: re-dispatch the tasks named in `invalid_task_files` (`<id>.json`) once, as new batches, then run `$PO refs verify` again. Report any that stay invalid.
+   - Exit 1: move the files named in `invalid_task_files` (`<id>.json`) into `old/literature-<stamp>/`, re-dispatch those tasks once, as new batches, then run `$PO refs verify` again. Report any that stay invalid.
    - Exit 2: a settings problem or a missing candidates folder; follow the catch-all in §3.
    - Show `warnings`.
 5. If no file in `references/candidates/` holds any candidate (count them with one short `python3` command), web search is probably unavailable. Then:
@@ -134,17 +140,17 @@ Run both branches together, with at most 4 agents at once across both. Send at m
    - move `references/candidates/` into `old/literature-<stamp>/`, so a later run searches again;
    - mark literature failed and stop this branch. The other stages still work.
 6. Run `$PO outline inject`.
-7. If `lit:writer` is not done, dispatch `literature-writer`. When `drafts/lit_sections.md` exists, run `$PO state task-done lit:writer`.
+7. If `lit:writer` is not done (§3 resume rule), dispatch `literature-writer`. When `drafts/lit_sections.md` exists, run `$PO state task-done lit:writer`.
 8. Run `$PO paper replace --owner literature-writer --from $PAPER/drafts/lit_sections.md`. On a conflict, see **Hand-edit conflicts** below.
 9. Report the four counts from `refs verify`: `with_abstract`, `title_only`, `must_cite`, and `dropped` (with `dropped_by_reason`).
 
 **Figures**
 
 R is `profile_values.critic_rounds` from `$PO settings show`. Each `figure_id` in `outline.json` → `plotting_plan` is a figure id. Run these steps for each figure where `$PO state is-done fig:<id>:done` exits 1:
-1. If `fig:<id>:r0` is not done, dispatch `figure-maker`. When `figures/meta/<id>.json` exists, run `$PO state task-done fig:<id>:r0`.
+1. If `fig:<id>:r0` is not done (§3 resume rule), dispatch `figure-maker`. When `figures/meta/<id>.json` exists, run `$PO state task-done fig:<id>:r0`.
 2. For each round n = 1 … R:
-   - **Round already done** (`fig:<id>:r<n>` is done): read `figures/critic/<id>-r<n>.json`. If its `critic_suggestions` is exactly `No changes needed.`, stop the loop.
-   - **Round not done:** dispatch `figure-critic` for round n. If its `critic_suggestions` is exactly `No changes needed.`, mark `fig:<id>:r<n>` and stop the loop. Otherwise re-dispatch `figure-maker` with that critic file, then mark `fig:<id>:r<n>`.
+   - **Round already done** (`fig:<id>:r<n>` is done, or passes the §3 resume rule): read `figures/critic/<id>-r<n>.json`. If its `critic_suggestions` is exactly `No changes needed.`, stop the loop.
+   - **Round not done:** dispatch `figure-critic` for round n, unless its critic file already passes the §3 check (then use that file). If its `critic_suggestions` is exactly `No changes needed.`, mark `fig:<id>:r<n>` and stop the loop. Otherwise re-dispatch `figure-maker` with that critic file, then mark `fig:<id>:r<n>`.
 3. Run `$PO state task-done fig:<id>:done`.
 
 If a maker reports that matplotlib is missing (`plot-run` exit 2), stop this branch and show doctor's `next_steps`; never install anything. When all figures are done, run `$PO figures collect`. On exit 1, show `errors`:
@@ -169,7 +175,7 @@ When both branches have finished, mark each branch this run completed: `$PO stat
 
 ## 7. Write
 
-1. If `write:writer` is not done, dispatch `section-writer`. When `drafts/write_sections.md` and `drafts/write_notes.md` exist, run `$PO state task-done write:writer`.
+1. If `write:writer` is not done (§3 resume rule), dispatch `section-writer`. When `drafts/write_sections.md` and `drafts/write_notes.md` exist, run `$PO state task-done write:writer`.
 2. Run `$PO paper replace --owner section-writer --from $PAPER/drafts/write_sections.md`, plus `--only "<Section>" …` from the arguments or the recorded options (§3). Conflicts: see §6.
 3. Run `$PO paper references`.
 4. Run `$PO paper save-version --kind tool`.
@@ -190,14 +196,14 @@ Before the panel on version 0:
 2. In revise mode, if `review:user-saved` is not done (fresh start or resume): if `$PO paper edits` reports any paragraphs, run `$PO paper save-version --kind user`, so the user's version stays in `drafts/`. Then mark `review:user-saved`.
 
 **Panel on version K**
-1. Dispatch `reviewer` in parallel for each i = 1 … N whose `review:v<K>:r<i>` is not done. Mark `review:v<K>:r<i>` when `reviews/v<K>/r<i>.md` exists.
-2. If meta is true and `review:v<K>:meta` is not done, dispatch `meta-reviewer`. Mark it when `reviews/v<K>/meta.md` exists.
+1. Dispatch `reviewer` in parallel for each i = 1 … N whose `review:v<K>:r<i>` is not done (§3 resume rule). Mark `review:v<K>:r<i>` when `reviews/v<K>/r<i>.md` exists.
+2. If meta is true and `review:v<K>:meta` is not done (§3 resume rule), dispatch `meta-reviewer`. Mark it when `reviews/v<K>/meta.md` exists.
 3. Run `$PO review aggregate --version K`. Exit 2 names a file that does not parse. Re-dispatch its agent once (same output path), then aggregate again. If it still fails, mark review failed and stop.
 
 **Rounds**
 1. Run the panel on version 0.
 2. For each round = 1 … R, with K the current version:
-   1. **Revise.** If `review:v<K+1>:reviser` is not done:
+   1. **Revise.** If `review:v<K+1>:reviser` is not done (§3 resume rule):
       - run `$PO review protect --out $PAPER/drafts/marked_v<K>.md` (both modes);
       - dispatch `reviser` with mode M;
       - mark `review:v<K+1>:reviser` when `drafts/candidate_v<K+1>.md` and `reviews/worklog_v<K+1>.json` exist.
@@ -227,7 +233,7 @@ Before the panel on version 0:
    - in revise mode, the changes made to those paragraphs;
    - if no revision was kept (round 1 undone, or no round ran), the problems listed in `drafts/write_notes.md` are still in `paper.md`: say so and list them. If round 1 was undone, `drafts/candidate_v1.md` holds the reviser's fixes.
 
-Every reviewer, meta-reviewer and reviser output file is a checkpoint, through its id above, and is skipped on resume.
+Every reviewer, meta-reviewer and reviser output file is a checkpoint, through its id above, and is skipped on resume, also when only the file exists (§3 resume rule).
 
 ## 9. Check
 
