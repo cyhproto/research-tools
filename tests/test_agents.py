@@ -27,7 +27,7 @@ AGENTS = {"materials-drafter": dict(model="inherit", tools="Read, Glob, Grep, Wr
           rules=[f"A{i}" for i in range(1, 4)], ground_rules=False, ported=True),
           "reviser": dict(model="inherit", tools="Read, Write",
           rules=[f"X{i}" for i in range(1, 11)], ground_rules=True, ported=True),
-          "checker": dict(model="inherit", tools="Read, Write",
+          "checker": dict(model="inherit", tools="Read, Write, Glob",
           rules=[f"K{i}" for i in range(1, 5)], ground_rules=False, ported=False)}
 
 

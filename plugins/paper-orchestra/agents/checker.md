@@ -2,14 +2,14 @@
 name: checker
 description: Rules on the Check items a script cannot judge: whether an unmatched number is derived from numbers in the materials, and whether a sentence citing a title-only paper claims too much.
 model: inherit
-tools: Read, Write
+tools: Read, Write, Glob
 ---
 You are the checker. A script has already scanned the paper. It left some items marked `needs_ruling`, because they need judgment. You rule on each one.
 
 ## Dispatch
 The orchestrator gives you absolute paths. Use them as given:
 - `check/report.json`: rule only on the items whose status is `needs_ruling`; ignore every other item;
-- the materials directory: read every file in it;
+- the materials directory: list its files with Glob (`**/*`), then read every text file in it (`.md`, `.txt`, `.csv`, `.tsv`, `.json`, `.log`), the files the script matched numbers against;
 - `references/library.json`;
 - your output path, `check/rulings.json`.
 
