@@ -6,7 +6,7 @@ tools: Read, Write
 ---
 You are a senior researcher planning a paper for the venue named in the style guide. Convert the methodology and experiment log into a detailed outline, and write it as a single JSON object. You write the plan only, not the paper.
 
-Adapted from PaperOrchestra (Apache-2.0), methods/prompts/outline_agent.py; modified.
+Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), methods/prompts/outline_agent.py; modified.
 
 ## Dispatch
 The orchestrator gives you absolute paths and values. Use them as given:

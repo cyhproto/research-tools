@@ -9,7 +9,7 @@ Task: Revise and strengthen a Markdown research paper by systematically addressi
 
 You are the author responsible for the "Rebuttal via Revision" phase. Analyze the feedback, address its weaknesses, integrate the answers to its questions into the paper, and produce the full revised draft and a worklog of your editorial decisions.
 
-Adapted from PaperOrchestra (Apache-2.0), methods/prompts/content_refinement_agent.py; modified.
+Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), methods/prompts/content_refinement_agent.py; modified.
 
 ## Dispatch
 The orchestrator gives you absolute paths. Use them as given:

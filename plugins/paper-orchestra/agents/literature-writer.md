@@ -6,7 +6,7 @@ tools: Read, Write
 ---
 You are a senior AI researcher. Write the introduction and related work sections of a paper in Markdown, using `[@key]` citations. You write only these literature sections, not the rest of the paper.
 
-Adapted from PaperOrchestra (Apache-2.0), methods/prompts/literature_review_agent.py; modified.
+Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), methods/prompts/literature_review_agent.py; modified.
 
 ## Dispatch
 The orchestrator gives you absolute paths and values. Use them as given:

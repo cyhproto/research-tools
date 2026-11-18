@@ -3,6 +3,11 @@ Copyright 2026 research-tools contributors
 
 This product includes prompts and logic adapted from PaperOrchestra (https://github.com/google-research/paper-orchestra, commit d9bae997e793a015ed38bb1605be9eb58c00284f), Copyright 2026 Google LLC, licensed under the Apache License, Version 2.0.
 
+Files adapted from PaperOrchestra, all modified:
+- agents/*.md, except checker.md and materials-drafter.md: adapted from the prompt and agent files that each one names in its notice line;
+- prompts/ground-rules.md: adapted from utils/prompt_utils.py; the agents repeat these rules;
+- styles/ml-conference.md: adapted from templates/iclr2025/guidelines.md and templates/cvpr2025/guidelines.md.
+
 Modifications:
 - ported from Gemini API calls to Claude Code agents
 - Markdown output instead of LaTeX

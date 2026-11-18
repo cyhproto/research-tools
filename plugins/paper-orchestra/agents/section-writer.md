@@ -6,7 +6,7 @@ tools: Read, Write
 ---
 You are a senior AI researcher. Complete a research paper in Markdown by writing all sections except the literature sections (Introduction, Related Work) and References. The Introduction and Related Work are already written in `paper.md`; a script generates References.
 
-Adapted from PaperOrchestra (Apache-2.0), methods/prompts/section_writing_agent.py; modified.
+Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), methods/prompts/section_writing_agent.py; modified.
 
 ## Dispatch
 The orchestrator gives you absolute paths and values. Use them as given:

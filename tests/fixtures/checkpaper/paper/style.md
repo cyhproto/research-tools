@@ -23,6 +23,8 @@ language: English
 
 Guidance for a double-blind machine learning conference paper written in Markdown.
 
+Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), templates/iclr2025/guidelines.md and templates/cvpr2025/guidelines.md; modified.
+
 ## Anonymity
 
 - The submission is double-blind. Do not include author names, affiliations, acknowledgments or links that identify the authors.

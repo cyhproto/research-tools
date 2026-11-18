@@ -46,10 +46,21 @@ def test_agent(name):
     if spec["ground_rules"]:
         assert GROUND_RULES in body
     if spec["ported"]:
-        assert "Adapted from PaperOrchestra (Apache-2.0)" in body
+        assert "Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), " in body
 
 
 def test_reviewer_has_original_top_rubric():
     text = (PLUGIN / "agents/reviewer.md").read_text(encoding="utf-8")
     assert ("This study is among the top 2% of all papers. It is one of the most thorough I have seen. "
             "It changed my thinking on this topic. I would fight for it to be accepted") in text
+
+
+def test_adapted_files_carry_the_notice_and_are_listed():
+    ml = (PLUGIN / "styles/ml-conference.md").read_text(encoding="utf-8")
+    assert ("Adapted from PaperOrchestra (Copyright 2026 Google LLC, Apache-2.0), templates/iclr2025/guidelines.md "
+            "and templates/cvpr2025/guidelines.md; modified.") in ml
+    notice = (PLUGIN / "NOTICE").read_text(encoding="utf-8")
+    for line in ("prompts/ground-rules.md: adapted from utils/prompt_utils.py",
+                 "styles/ml-conference.md: adapted from templates/iclr2025/guidelines.md and "
+                 "templates/cvpr2025/guidelines.md"):
+        assert line in notice, line
