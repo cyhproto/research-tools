@@ -19,5 +19,6 @@ def test_journal_topic_fixture(capsys):
     imp = load_imports(p)
     assert [len(imp["library"]), len(imp["must_cite"]), imp["warnings"]] == [2, 1, []]
     assert all(ref.abstract for ref in imp["library"]) and imp["must_cite"][0].key == "hu2020battery"
+    assert "9.1% test error" in imp["library"][0].abstract  # the paraphrase keeps the number the scenario quotes
     assert main(["outline", "validate", "--paper", str(p)]) == 0
     assert json.loads(capsys.readouterr().out)["ok"]
